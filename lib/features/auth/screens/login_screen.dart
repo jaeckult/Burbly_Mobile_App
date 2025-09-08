@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import '../auth_service.dart';
-import '../../../core/services/background_service.dart';
 import 'signup_screen.dart';
 import '../../../core/core.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/auth_bloc.dart';
+import '../bloc/auth_event.dart';
+import '../bloc/auth_state.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,9 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
-  bool _isLoading = false;
-  bool _obscurePassword = true;
+  
 
   @override
   void dispose() {
@@ -26,68 +26,18 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _signInWithEmail() async {
+  void _signInWithEmail() {
     if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      await _authService.signIn(
+    context.read<AuthBloc>().add(
+      SignInWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text,
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Login failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+      ),
+    );
   }
 
-  Future<void> _signInWithGoogle() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final result = await _authService.signInWithGoogle(forceAccountSelection: true);
-      if (result != null) {
-        // Clear local data and reload from Firestore for the signed-in account
-        try {
-          await DataService().initialize();
-          await DataService().clearAllLocalData();
-          await BackgroundService().resetStudyStreak();
-          await DataService().loadDataFromFirestore();
-        } catch (_) {}
-      }
-      if (result == null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Google sign-in was cancelled'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google sign-in failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+  void _signInWithGoogle() {
+    context.read<AuthBloc>().add(const SignInWithGoogle());
   }
 
   @override
@@ -99,7 +49,20 @@ class _LoginScreenState extends State<LoginScreen> {
             padding: const EdgeInsets.all(24.0),
             child: Form(
               key: _formKey,
-              child: Column(
+              child: BlocConsumer<AuthBloc, AuthState>(
+                listenWhen: (prev, curr) => prev.errorMessage != curr.errorMessage || prev.signedIn != curr.signedIn,
+                listener: (context, state) {
+                  if (state.errorMessage != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red),
+                    );
+                  }
+                  if (state.signedIn) {
+                    Navigator.of(context).pushReplacementNamed('/home');
+                  }
+                },
+                builder: (context, state) {
+                  return Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -155,20 +118,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Password Field
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: _obscurePassword,
+                    obscureText: state.obscurePassword,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       hintText: 'Enter your password',
                       prefixIcon: const Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
+                        icon: Icon(state.obscurePassword ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => context.read<AuthBloc>().add(const TogglePasswordVisibility()),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -188,14 +145,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Sign In Button
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _signInWithEmail,
+                    onPressed: state.isLoading ? null : _signInWithEmail,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: _isLoading
+                    child: state.isLoading
                         ? const SizedBox(
                             height: 20,
                             width: 20,
@@ -226,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Google Sign In Button
                   OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _signInWithGoogle,
+                    onPressed: state.isLoading ? null : _signInWithGoogle,
                     icon: Image.network(
                       'https://developers.google.com/identity/images/g-logo.png',
                       height: 24,
@@ -261,6 +218,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ],
+                  );
+                },
               ),
             ),
           ),

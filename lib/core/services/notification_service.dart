@@ -8,9 +8,8 @@ import '../models/deck.dart';
 import '../models/flashcard.dart';
 import '../models/notification.dart';
 import 'data_service.dart';
-import 'package:flutter/material.dart';
-import '../../features/flashcards/screens/mixed_study_screen.dart';
-import '../../features/flashcards/screens/deck_detail_screen.dart';
+import '../../features/flashcards/study/screens/mixed_study_screen.dart';
+import '../../features/flashcards/deck_detail/view/deck_detail_screen.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();

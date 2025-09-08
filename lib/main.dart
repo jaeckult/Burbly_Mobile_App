@@ -5,8 +5,8 @@ import 'package:adaptive_theme/adaptive_theme.dart';
 import 'firebase_options.dart';
 // import 'features/auth/auth_service.dart';
 import 'features/auth/screens/welcome_screen.dart';
-import 'features/flashcards/screens/deck_pack_list_screen.dart';
-import 'features/flashcards/screens/flashcard_home_screen.dart';
+import 'features/flashcards/deck_list/view/deck_pack_list_screen.dart';
+import 'features/flashcards/home/screens/flashcard_home_screen.dart';
 import 'core/core.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/background_service.dart';
@@ -14,6 +14,9 @@ import 'core/services/adaptive_theme_service.dart';
 import 'core/services/pet_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'features/auth/bloc/auth_bloc.dart';
+import 'features/auth/services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,18 +76,25 @@ class MyApp extends StatelessWidget {
       light: AdaptiveThemeService.lightTheme,
       dark: AdaptiveThemeService.darkTheme,
       initial: AdaptiveThemeMode.dark,
-      builder: (theme, darkTheme) => MaterialApp(
-        title: 'Burbly Flashcard',
-        debugShowCheckedModeBanner: false,
-        theme: theme,
-        darkTheme: darkTheme,
-        navigatorKey: NotificationService().navigatorKey,
-        home: const _RootScreen(),
-        routes: {
-          '/home': (context) => const DeckPackListScreen(),
-          '/flashcards': (context) => const FlashcardHomeScreen(),
-          '/transitions': (context) => const TransitionDemoScreen(),
-        },
+      builder: (theme, darkTheme) => MultiBlocProvider(
+        providers: [
+          BlocProvider<AuthBloc>(
+            create: (_) => AuthBloc(AuthService()),
+          ),
+        ],
+        child: MaterialApp(
+          title: 'Burbly Flashcard',
+          debugShowCheckedModeBanner: false,
+          theme: theme,
+          darkTheme: darkTheme,
+          navigatorKey: NotificationService().navigatorKey,
+          home: const _RootScreen(),
+          routes: {
+            '/home': (context) => const DeckPackListScreen(),
+            '/flashcards': (context) => const FlashcardHomeScreen(),
+            '/transitions': (context) => const TransitionDemoScreen(),
+          },
+        ),
       ),
     );
   }

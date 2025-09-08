@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/core.dart';
+import '../services/schedule_service.dart';
+import '../models/calendar_event.dart';
 
 class MySchedulesScreen extends StatefulWidget {
   const MySchedulesScreen({super.key});
@@ -9,8 +10,7 @@ class MySchedulesScreen extends StatefulWidget {
 }
 
 class _MySchedulesScreenState extends State<MySchedulesScreen> {
-  final DataService _dataService = DataService();
-  List<Deck> _allDecks = [];
+  final ScheduleService _scheduleService = ScheduleService();
   List<CalendarEvent> _events = [];
   bool _isLoading = true;
   DateTime _focusedDate = DateTime.now();
@@ -22,57 +22,15 @@ class _MySchedulesScreenState extends State<MySchedulesScreen> {
     _loadCalendarData();
   }
 
-
-
   Future<void> _loadCalendarData() async {
     setState(() => _isLoading = true);
     
     try {
-      // Load all decks
-      _allDecks = await _dataService.getDecks();
-      
-      // Convert decks to calendar events
-      _events = _convertDecksToEvents();
-      
+      _events = await _scheduleService.getCalendarEvents();
     } catch (e) {
       print('Error loading calendar data: $e');
     } finally {
       setState(() => _isLoading = false);
-    }
-  }
-
-  List<CalendarEvent> _convertDecksToEvents() {
-    final List<CalendarEvent> events = [];
-    final now = DateTime.now();
-    
-    // Only add deck-level scheduled review events
-    for (final deck in _allDecks) {
-      if (deck.scheduledReviewEnabled == true && deck.scheduledReviewTime != null) {
-        final scheduledDate = deck.scheduledReviewTime!;
-        final isOverdue = scheduledDate.isBefore(now);
-        
-        events.add(CalendarEvent(
-          date: scheduledDate,
-          title: 'Deck Review: ${deck.name}',
-          color: isOverdue ? Colors.red : Colors.indigo,
-          deckName: deck.name,
-          isOverdue: isOverdue,
-          deckId: deck.id,
-        ));
-      }
-    }
-    
-    return events;
-  }
-
-  // Card-level event colors removed - only deck-level scheduling is used
-
-  String _getDeckName(String deckId) {
-    try {
-      final deck = _allDecks.firstWhere((deck) => deck.id == deckId);
-      return deck.name;
-    } catch (e) {
-      return 'Deck ${deckId.substring(0, 8)}...';
     }
   }
 
@@ -505,20 +463,3 @@ class _MySchedulesScreenState extends State<MySchedulesScreen> {
   }
 }
 
-class CalendarEvent {
-  final DateTime date;
-  final String title;
-  final Color color;
-  final String deckName;
-  final bool isOverdue;
-  final String? deckId;
-
-  CalendarEvent({
-    required this.date,
-    required this.title,
-    required this.color,
-    required this.deckName,
-    required this.isOverdue,
-    this.deckId,
-  });
-}

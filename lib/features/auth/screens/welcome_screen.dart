@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../auth_service.dart';
+import '../services/auth_service.dart';
 import '../../../core/services/background_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/core.dart';
-import '../../flashcards/screens/deck_pack_list_screen.dart';
+import '../../flashcards/deck_list/view/deck_pack_list_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});

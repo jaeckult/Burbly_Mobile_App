@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import '../auth_service.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/auth_bloc.dart';
+import '../bloc/auth_event.dart';
+import '../bloc/auth_state.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -13,10 +16,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _authService = AuthService();
-  bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
+  
 
   @override
   void dispose() {
@@ -26,68 +26,18 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  Future<void> _signUpWithEmail() async {
+  void _signUpWithEmail() {
     if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      await _authService.createAccout(
+    context.read<AuthBloc>().add(
+      SignUpWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text,
-      );
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully! Please verify your email.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sign up failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+      ),
+    );
   }
 
-  Future<void> _signInWithGoogle() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final result = await _authService.signInWithGoogle();
-      if (result == null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Google sign-in was cancelled'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google sign-in failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+  void _signInWithGoogle() {
+    context.read<AuthBloc>().add(const SignInWithGoogle());
   }
 
   @override
@@ -104,7 +54,20 @@ class _SignupScreenState extends State<SignupScreen> {
             padding: const EdgeInsets.all(24.0),
             child: Form(
               key: _formKey,
-              child: Column(
+              child: BlocConsumer<AuthBloc, AuthState>(
+                listenWhen: (prev, curr) => prev.errorMessage != curr.errorMessage || prev.signedIn != curr.signedIn,
+                listener: (context, state) {
+                  if (state.errorMessage != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red),
+                    );
+                  }
+                  if (state.signedIn) {
+                    Navigator.of(context).pushReplacementNamed('/home');
+                  }
+                },
+                builder: (context, state) {
+                  return Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -160,20 +123,14 @@ class _SignupScreenState extends State<SignupScreen> {
                   // Password Field
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: _obscurePassword,
+                    obscureText: state.obscurePassword,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       hintText: 'Enter your password',
                       prefixIcon: const Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
+                        icon: Icon(state.obscurePassword ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => context.read<AuthBloc>().add(const TogglePasswordVisibility()),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -194,20 +151,14 @@ class _SignupScreenState extends State<SignupScreen> {
                   // Confirm Password Field
                   TextFormField(
                     controller: _confirmPasswordController,
-                    obscureText: _obscureConfirmPassword,
+                    obscureText: state.obscureConfirmPassword,
                     decoration: InputDecoration(
                       labelText: 'Confirm Password',
                       hintText: 'Confirm your password',
                       prefixIcon: const Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureConfirmPassword = !_obscureConfirmPassword;
-                          });
-                        },
+                        icon: Icon(state.obscureConfirmPassword ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => context.read<AuthBloc>().add(const ToggleConfirmPasswordVisibility()),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -227,14 +178,14 @@ class _SignupScreenState extends State<SignupScreen> {
 
                   // Sign Up Button
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _signUpWithEmail,
+                    onPressed: state.isLoading ? null : _signUpWithEmail,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: _isLoading
+                    child: state.isLoading
                         ? const SizedBox(
                             height: 20,
                             width: 20,
@@ -265,7 +216,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
                   // Google Sign In Button
                   OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _signInWithGoogle,
+                    onPressed: state.isLoading ? null : _signInWithGoogle,
                     icon: Image.network(
                       'https://developers.google.com/identity/images/g-logo.png',
                       height: 24,
@@ -297,6 +248,8 @@ class _SignupScreenState extends State<SignupScreen> {
                     ],
                   ),
                 ],
+                  );
+                },
               ),
             ),
           ),
