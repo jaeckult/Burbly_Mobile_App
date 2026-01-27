@@ -1,4 +1,4 @@
-package com.example.burblyflashcard
+package com.burbly.app
 
 import io.flutter.embedding.android.FlutterActivity
 

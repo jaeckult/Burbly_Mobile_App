@@ -3,15 +3,16 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    
+    <!-- Removed FOREGROUND_SERVICE, SCHEDULE_EXACT_ALARM, and USE_EXACT_ALARM 
+         as they are not strictly required and risk Play Store rejection. 
+         Notifications now use inexact timing. -->
     
     <application
-        android:label="burblyflashcard"
+        android:label="Burbly"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
         
         <!-- Notification receiver for boot completed -->
         <receiver

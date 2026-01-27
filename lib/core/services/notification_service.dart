@@ -406,7 +406,7 @@ class NotificationService {
             'You have flashcards waiting for review. Keep your streak going!',
             scheduledTime,
             details,
-            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
             uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
             // No matchDateTimeComponents for today
             payload: 'study_reminder',
@@ -420,7 +420,7 @@ class NotificationService {
             'You have flashcards waiting for review. Keep your streak going!',
             scheduledTime,
             details,
-            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
             uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
             matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
             payload: 'study_reminder',
@@ -481,7 +481,7 @@ class NotificationService {
         'You have ${overdueCards.length} overdue cards waiting for review.',
         scheduledTime,
         details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         payload: 'overdue_card',
       );
@@ -529,7 +529,7 @@ class NotificationService {
         message,
         scheduledTime,
         details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         payload: 'streak_reminder',
       );
@@ -584,7 +584,7 @@ class NotificationService {
         message,
         scheduledTime,
         details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
 
@@ -738,7 +738,7 @@ class NotificationService {
           'Time to review your flashcards!',
           scheduledTime,
           details,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           payload: 'study_reminder',
           matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
@@ -1024,7 +1024,7 @@ class NotificationService {
         'You have flashcards waiting for review. Keep your streak going!',
         scheduledTime,
         details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
       
@@ -1149,7 +1149,7 @@ class NotificationService {
         'Your scheduled review for "${deck.name}" is due now!',
         scheduledTime,
         details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         payload: 'scheduled_review_${deck.id}',
       );
@@ -1321,7 +1321,7 @@ class NotificationService {
         'Time to review: ${flashcard.question.length > 50 ? flashcard.question.substring(0, 50) + '...' : flashcard.question}',
         scheduledTime,
         details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         payload: 'card_review_${flashcard.id}',
       );

@@ -79,7 +79,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Join Burbly Flashcard',
+                    'Join Burbly',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).primaryColor,
@@ -230,6 +230,31 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  // Privacy Policy Link
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      children: [
+                        Text(
+                          'By signing up, you agree to our ',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                        ),
+                        InkWell(
+                          onTap: () => Navigator.pushNamed(context, '/privacy'),
+                          child: Text(
+                            'Privacy Policy',
+                            style: TextStyle(
+                              color: Theme.of(context).primaryColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                   // Sign In Link
                   Row(

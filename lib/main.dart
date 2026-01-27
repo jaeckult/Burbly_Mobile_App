@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 import 'features/auth/screens/welcome_screen.dart';
 import 'features/flashcards/deck_list/view/deck_pack_list_screen.dart';
 import 'features/flashcards/home/screens/flashcard_home_screen.dart';
+import 'features/auth/screens/privacy_policy_screen.dart';
 import 'core/core.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/background_service.dart';
@@ -83,7 +84,7 @@ class MyApp extends StatelessWidget {
           ),
         ],
         child: MaterialApp(
-          title: 'Burbly Flashcard',
+          title: 'Burbly',
           debugShowCheckedModeBanner: false,
           theme: theme,
           darkTheme: darkTheme,
@@ -93,6 +94,7 @@ class MyApp extends StatelessWidget {
             '/home': (context) => const DeckPackListScreen(),
             '/flashcards': (context) => const FlashcardHomeScreen(),
             '/transitions': (context) => const TransitionDemoScreen(),
+            '/privacy': (context) => const PrivacyPolicyScreen(),
           },
         ),
       ),
@@ -155,7 +157,7 @@ class _RootScreenState extends State<_RootScreen> {
           ),
           child: Center(
             child: Text(
-              'burbly',
+              'Burbly',
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.0,

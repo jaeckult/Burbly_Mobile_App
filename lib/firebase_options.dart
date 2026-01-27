@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyB6iC-DFautSkV5xPtLXF9L7zVevfaX5eo',
-    appId: '1:56676639963:android:57d660e6524356d2ca58fe',
+    appId: '1:56676639963:android:7f601f21c15ce41dca58fe',
     messagingSenderId: '56676639963',
     projectId: 'burbly-7a57b',
     storageBucket: 'burbly-7a57b.firebasestorage.app',
@@ -63,6 +63,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '56676639963',
     projectId: 'burbly-7a57b',
     storageBucket: 'burbly-7a57b.firebasestorage.app',
-    iosBundleId: 'com.example.burblyflashcard',
+    iosBundleId: 'com.burbly.app',
   );
 }
