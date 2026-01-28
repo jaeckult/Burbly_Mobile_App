@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,9 +14,12 @@ import '../../deck_management/screens/create_deck_screen.dart';
 import '../../notes/screens/notes_screen.dart';
 import '../../search/screens/search_screen.dart';
 import '../../notifications/screens/notification_settings_screen.dart';
+import '../../study/screens/mixed_study_screen.dart';
+import '../../../schedules/screens/my_schedules_screen.dart';
 import '../bloc/bloc.dart';
 import '../widgets/deck_pack_card.dart';
 import '../widgets/deck_pack_list_drawer.dart';
+import '../widgets/quick_actions_sheet.dart';
 import '../../../../core/widgets/skeleton_loading.dart';
 
 /// Refactored DeckPackListScreen using BLoC for state management.
@@ -43,6 +47,8 @@ class _DeckPackListScreenContent extends StatefulWidget {
 class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> {
   final AuthService _authService = AuthService();
   bool _isGuestMode = false;
+  bool _isQuickActionsExpanded = false;
+  final DraggableScrollableController _sheetController = DraggableScrollableController();
 
   @override
   void initState() {
@@ -241,11 +247,27 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
     return '${date.day}/${date.month}/${date.year}';
   }
 
+  // Quick action handlers
+  void _onMixedStudy() {
+    // Navigate to mixed study screen
+    context.pushSlide(const MixedStudyScreen());
+  }
+
+  void _onCalendar() {
+    // Navigate to calendar/schedule screen
+    context.pushSlide(const MySchedulesScreen());
+  }
+
+  void _onBurblyAI() {
+    // Show coming soon message for AI feature
+    SnackbarUtils.showInfoSnackbar(context, 'Burbly AI is coming soon! Stay tuned for AI-powered study assistance.');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Burbly Flashcards'),
+        title: const Text('Burbly'),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -264,52 +286,98 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
         onSignOut: _signOut,
         onAbout: _showAboutDialog,
       ),
-      body: BlocBuilder<DeckPackBloc, DeckPackState>(
-        builder: (context, state) {
-          final isLoading = state is DeckPackLoading;
-          final isLoaded = state is DeckPackLoaded;
-          final isError = state is DeckPackError;
+      body: Stack(
+        children: [
+          // Main content with blur effect
+          GestureDetector(
+            onTap: _isQuickActionsExpanded
+                ? () {
+                    // Collapse the sheet when tapping on blurred area
+                    setState(() => _isQuickActionsExpanded = false);
+                    _sheetController.animateTo(
+                      0.12,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                : null,
+            child: Stack(
+              children: [
+                BlocBuilder<DeckPackBloc, DeckPackState>(
+                  builder: (context, state) {
+                    final isLoading = state is DeckPackLoading;
+                    final isLoaded = state is DeckPackLoaded;
+                    final isError = state is DeckPackError;
+                    
+                    // Use smooth transition for loading states
+                    return SmoothLoadingTransition(
+                      isLoading: isLoading,
+                      loadingWidget: const DeckPackListSkeleton(itemCount: 4),
+                      child: isError
+                          ? Center(child: Text((state as DeckPackError).message))
+                          : isLoaded
+                              ? (state as DeckPackLoaded).deckPacks.isEmpty
+                                  ? _buildEmptyState()
+                                  : RefreshIndicator(
+                                      onRefresh: () async {
+                                        context.read<DeckPackBloc>().add(const RefreshDeckPacks());
+                                      },
+                                      child: ListView.builder(
+                                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120), // Extra bottom for quick actions
+                                        itemCount: (state).deckPacks.length,
+                                        itemBuilder: (context, index) {
+                                          final deckPack = (state).deckPacks[index];
+                                          return StaggeredListItem(
+                                            index: index,
+                                            child: DeckPackCard(
+                                              deckPack: deckPack,
+                                              decks: (state).decksInPacks[deckPack.id] ?? [],
+                                              isExpanded: (state).expandedPackIds.contains(deckPack.id),
+                                              onToggle: () {
+                                                context.read<DeckPackBloc>().add(TogglePackExpansion(deckPack.id));
+                                              },
+                                              onOptions: () => _showDeckPackOptions(deckPack),
+                                              onCreateDeck: () => _createNewDeck(deckPack),
+                                              onOpenDeck: _openDeck,
+                                              onDeleteDeck: _confirmDeleteDeck,
+                                              formatDate: _formatDate,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    )
+                              : const SizedBox.shrink(),
+                    );
+                  },
+                ),
+                
+                // Blur overlay - instant appearance
+                if (_isQuickActionsExpanded)
+                  Positioned.fill(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+                      child: Container(
+                        color: Colors.black.withOpacity(0.1),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           
-          // Use smooth transition for loading states
-          return SmoothLoadingTransition(
-            isLoading: isLoading,
-            loadingWidget: const DeckPackListSkeleton(itemCount: 4),
-            child: isError
-                ? Center(child: Text((state as DeckPackError).message))
-                : isLoaded
-                    ? (state as DeckPackLoaded).deckPacks.isEmpty
-                        ? _buildEmptyState()
-                        : RefreshIndicator(
-                            onRefresh: () async {
-                              context.read<DeckPackBloc>().add(const RefreshDeckPacks());
-                            },
-                            child: ListView.builder(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: (state).deckPacks.length,
-                              itemBuilder: (context, index) {
-                                final deckPack = (state).deckPacks[index];
-                                return StaggeredListItem(
-                                  index: index,
-                                  child: DeckPackCard(
-                                    deckPack: deckPack,
-                                    decks: (state).decksInPacks[deckPack.id] ?? [],
-                                    isExpanded: (state).expandedPackIds.contains(deckPack.id),
-                                    onToggle: () {
-                                      context.read<DeckPackBloc>().add(TogglePackExpansion(deckPack.id));
-                                    },
-                                    onOptions: () => _showDeckPackOptions(deckPack),
-                                    onCreateDeck: () => _createNewDeck(deckPack),
-                                    onOpenDeck: _openDeck,
-                                    onDeleteDeck: _confirmDeleteDeck,
-                                    formatDate: _formatDate,
-                                  ),
-                                );
-                              },
-                            ),
-                          )
-                    : const SizedBox.shrink(),
-          );
-        },
+          // Quick actions sheet
+          QuickActionsSheet(
+            controller: _sheetController,
+            onExpansionChanged: (isExpanded) {
+              setState(() => _isQuickActionsExpanded = isExpanded);
+            },
+            actions: QuickActionsSheet.defaultActions(
+              onMixedStudy: _onMixedStudy,
+              onCalendar: _onCalendar,
+              onBurblyAI: _onBurblyAI,
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _createNewDeckPack,

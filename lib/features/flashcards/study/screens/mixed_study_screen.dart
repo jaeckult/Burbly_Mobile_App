@@ -120,7 +120,7 @@ class _MixedStudyScreenState extends State<MixedStudyScreen> {
         description: 'Cards from all decks that need review',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        coverColor: '9C27B0', // Purple color for mixed study
+        coverColor: '26A69A', // Warm teal color for mixed study
         spacedRepetitionEnabled: false, // Don't affect schedules for custom study
         showStudyStats: true,
       );
@@ -173,11 +173,16 @@ class _MixedStudyScreenState extends State<MixedStudyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5);
+    final primaryColor = const Color(0xFF26A69A); // Warm teal - cozy and inviting
+    final primaryDark = const Color(0xFF00897B);
+    
     return Scaffold(
-      backgroundColor: const Color(0xFF9C27B0), // Set full-screen purple background
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: Text(widget.customDeck?.name ?? 'Mixed Study'),
-        backgroundColor: const Color(0xFF9C27B0), // Purple theme
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -196,6 +201,10 @@ class _MixedStudyScreenState extends State<MixedStudyScreen> {
   }
 
   Widget _buildBody() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = const Color(0xFF26A69A);
+    final primaryDark = const Color(0xFF00897B);
+    
     final totalCardsToReview = widget.customFlashcards?.length ?? (_overdueCards.length + _cardsDueToday.length);
     
     if (totalCardsToReview == 0) {
@@ -208,20 +217,20 @@ class _MixedStudyScreenState extends State<MixedStudyScreen> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF9C27B0),
-                Color(0xFF7B1FA2),
+                primaryColor,
+                primaryDark,
               ],
             ),
           ),
           child: Column(
             children: [
               const Icon(
-                Icons.school,
+                Icons.shuffle,
                 color: Colors.white,
                 size: 48,
               ),
@@ -237,10 +246,10 @@ class _MixedStudyScreenState extends State<MixedStudyScreen> {
               const SizedBox(height: 8),
               Text(
                 widget.customFlashcards != null 
-                    ? '$totalCardsToReview across all decks'
+                    ? '$totalCardsToReview cards across all decks'
                     : '$totalCardsToReview cards need review',
                 style: const TextStyle(
-                  color: Colors.white70,
+                  color: Colors.white,
                   fontSize: 16,
                 ),
               ),
@@ -284,22 +293,26 @@ class _MixedStudyScreenState extends State<MixedStudyScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
                     )
                   : const Icon(Icons.play_arrow, size: 24),
               label: Text(
                 _isStartingStudy 
                     ? 'Starting Study...' 
-                    : (widget.customFlashcards != null ? 'Start Mixed Study' : 'Start Mixed Study'),
+                    : 'Start Mixed Study',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 117, 40, 40),
+                backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
+                elevation: 2,
               ),
             ),
           ),
@@ -309,6 +322,9 @@ class _MixedStudyScreenState extends State<MixedStudyScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = const Color(0xFF26A69A);
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -316,20 +332,21 @@ class _MixedStudyScreenState extends State<MixedStudyScreen> {
           Icon(
             Icons.check_circle_outline,
             size: 80,
-            color: Colors.grey[400],
+            color: isDark ? Colors.grey[600] : Colors.grey[400],
           ),
           const SizedBox(height: 16),
           Text(
             'All Caught Up! 🎉',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Colors.grey[600],
+              color: isDark ? Colors.grey[300] : Colors.grey[700],
+              fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'No cards need review at the moment.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.grey[500],
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
             ),
           ),
           const SizedBox(height: 24),
@@ -338,8 +355,9 @@ class _MixedStudyScreenState extends State<MixedStudyScreen> {
             icon: const Icon(Icons.refresh),
             label: const Text('Refresh'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF9C27B0),
+              backgroundColor: primaryColor,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
         ],
