@@ -1,4 +1,3 @@
-// import 'package:burblyflashcard/features/pets/screens/pet_management_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,14 +6,11 @@ import '../../core/core.dart';
 import '../../core/services/adaptive_theme_service.dart';
 import 'deck_management/screens/create_deck_screen.dart';
 import 'deck_detail/view/deck_detail_screen.dart';
-// import 'search_screen.dart';
 import '../../core/services/background_service.dart';
 import 'deck_list/view/deck_pack_list_screen.dart';
 import 'notes/screens/notes_screen.dart';
 import 'notifications/screens/notification_settings_screen.dart';
 import '../stats/screens/stats_page.dart';
-// import '../../../core/services/pet_notification_service.dart';
-import '../../core/utils/snackbar_utils.dart';
 import 'trash/screens/trash_screen.dart';
 import 'study/screens/mixed_study_screen.dart';
 
@@ -28,7 +24,6 @@ class FlashcardHomeScreen extends StatefulWidget {
 class _FlashcardHomeScreenState extends State<FlashcardHomeScreen> {
   final DataService _dataService = DataService();
   final AuthService _authService = AuthService();
-  // final PetNotificationService _petNotificationService = PetNotificationService();
   List<Deck> _decks = [];
   bool _isLoading = true;
   bool _isGuestMode = false;
@@ -37,35 +32,12 @@ class _FlashcardHomeScreenState extends State<FlashcardHomeScreen> {
   void initState() {
     super.initState();
     _initializeData();
-    // _registerPetNotifications();
   }
 
   @override
   void dispose() {
-    // _petNotificationService.unregisterCallback();
     super.dispose();
   }
-
-  // void _registerPetNotifications() {
-  //   _petNotificationService.registerCallback((message, type) {
-  //     if (mounted) {
-  //       switch (type) {
-  //         case 'success':
-  //           SnackbarUtils.showSuccessSnackbar(context, message);
-  //           break;
-  //         case 'warning':
-  //           SnackbarUtils.showWarningSnackbar(context, message);
-  //           break;
-  //         case 'error':
-  //           SnackbarUtils.showErrorSnackbar(context, message);
-  //           break;
-  //         case 'info':
-  //           SnackbarUtils.showInfoSnackbar(context, message);
-  //           break;
-  //       }
-  //     }
-  //   });
-  // }
 
   Future<void> _initializeData() async {
     try {

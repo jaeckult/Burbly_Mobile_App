@@ -6,6 +6,8 @@ export 'models/note.dart';
 export 'models/study_session.dart';
 export 'models/simple_study_session.dart';
 export 'models/study_result.dart';
+export 'models/trash_item.dart';
+export 'models/notification.dart';
 
 // Core Services
 export 'services/data_service.dart';
@@ -19,6 +21,9 @@ export 'services/deck_scheduling_service.dart';
 
 // Core Constants
 export 'constants/app_constants.dart';
+export 'constants/app_colors.dart';
+export 'constants/app_dimensions.dart';
+export 'constants/app_strings.dart';
 
 // Core Utils
 export 'utils/date_utils.dart';
@@ -30,3 +35,7 @@ export 'widgets/transition_demo_screen.dart';
 export 'widgets/scheduling_consent_dialog.dart';
 export 'widgets/profile_avatar.dart';
 export 'widgets/profile_demo_screen.dart';
+export 'widgets/app_drawer.dart';
+
+// Dependency Injection
+export 'di/service_locator.dart';

@@ -3,13 +3,13 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import '../models/deck.dart';
-import '../models/flashcard.dart';
+import '../repositories/notification_repository.dart';
+import './reminder_service.dart';
+import './data_service.dart';
+import '../utils/logger.dart';
 import '../models/notification.dart';
-import 'data_service.dart';
-import '../../features/flashcards/study/screens/mixed_study_screen.dart';
-import '../../features/flashcards/deck_detail/view/deck_detail_screen.dart';
+import '../models/flashcard.dart';
+import '../models/deck.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -17,17 +17,14 @@ class NotificationService {
   NotificationService._internal();
 
   final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
-  final DataService _dataService = DataService();
-  // Global navigator to handle navigation on notification taps
-  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  final NotificationRepository _repository = NotificationRepository();
+  late final ReminderService _reminderService;
   
-  // Store the detected timezone
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   tz.Location? _detectedTimezone;
 
-  // Notification IDs
-  static const int dailyReminderId = 1000;
-  static const int overdueCardsId = 2000;
-  static const int studyStreakId = 3000;
+  ReminderService get reminder => _reminderService;
+  NotificationRepository get repository => _repository;
 
   // Channel IDs
   static const String dailyReminderChannelId = 'daily_reminder_channel';
@@ -38,69 +35,53 @@ class NotificationService {
 
   Future<void> initialize() async {
     tz.initializeTimeZones();
-
-    // Force timezone detection to device's actual timezone
     await _detectAndSetTimezone();
+    
+    _reminderService = ReminderService(
+      notifications: _notifications,
+      repository: _repository,
+      detectedTimezone: () => _detectedTimezone,
+    );
 
-    const AndroidInitializationSettings androidSettings = 
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
 
-    const InitializationSettings initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
+    const initSettings = InitializationSettings(android: androidSettings, iOS: iosSettings);
 
     await _notifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
-    // Create notification channels for Android
     await _createNotificationChannels();
-    
     await _requestPermissions();
   }
 
   Future<void> _detectAndSetTimezone() async {
     try {
-      // Get device's current timezone offset
       final now = DateTime.now();
       final utcOffset = now.timeZoneOffset;
-      
-      // Find a timezone that matches this offset
       final timezoneNames = tz.timeZoneDatabase.locations.keys.toList();
       String? bestMatch;
       
-      for (final timezoneName in timezoneNames) {
+      for (final name in timezoneNames) {
         try {
-          final timezone = tz.getLocation(timezoneName);
-          final tzNow = tz.TZDateTime.now(timezone);
-          if (tzNow.timeZoneOffset == utcOffset) {
-            bestMatch = timezoneName;
+          final loc = tz.getLocation(name);
+          if (tz.TZDateTime.now(loc).timeZoneOffset == utcOffset) {
+            bestMatch = name;
             break;
           }
-        } catch (e) {
-          // Skip invalid timezones
-        }
+        } catch (_) {}
       }
       
-      if (bestMatch != null) {
-        _detectedTimezone = tz.getLocation(bestMatch);
-        print('Detected timezone: $bestMatch (offset: ${utcOffset.inHours} hours)');
-        print('Stored timezone: ${_detectedTimezone?.name}');
-      } else {
-        print('Could not detect timezone, using device offset: ${utcOffset.inHours} hours');
-        // Fallback to UTC
-        _detectedTimezone = tz.UTC;
-      }
+      _detectedTimezone = tz.getLocation(bestMatch ?? 'UTC');
+      AppLogger.notification('Timezone set to: ${_detectedTimezone?.name}');
     } catch (e) {
-      print('Error detecting timezone: $e');
+      AppLogger.error('Timezone detection failed', error: e);
     }
   }
 
@@ -109,1414 +90,163 @@ class NotificationService {
         AndroidFlutterLocalNotificationsPlugin>();
     
     if (androidPlugin != null) {
-      // Daily reminder channel
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          dailyReminderChannelId,
-          'Daily Study Reminders',
-          description: 'Reminders to study your flashcards daily',
-          importance: Importance.high,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
+      final channels = [
+        const AndroidNotificationChannel('daily_reminder_channel', 'Daily Study Reminders', importance: Importance.high),
+        const AndroidNotificationChannel('overdue_cards_channel', 'Overdue Cards', importance: Importance.high),
+        const AndroidNotificationChannel('study_streak_channel', 'Study Streaks'),
+        const AndroidNotificationChannel('pet_notification_channel', 'Pet Notifications'),
+        const AndroidNotificationChannel('immediate_channel', 'Immediate Notifications', importance: Importance.high),
+        const AndroidNotificationChannel('card_review_channel', 'Card Review'),
+      ];
 
-      // Overdue cards channel
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          overdueCardsChannelId,
-          'Overdue Cards',
-          description: 'Reminders for cards that need review',
-          importance: Importance.high,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
-
-      // Study streak channel
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          studyStreakChannelId,
-          'Study Streaks',
-          description: 'Celebrate your study streaks',
-          importance: Importance.defaultImportance,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
-
-      // Pet notifications channel
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          petNotificationChannelId,
-          'Pet Notifications',
-          description: 'Notifications from your study pet',
-          importance: Importance.defaultImportance,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
-
-      // Immediate notifications channel
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          immediateChannelId,
-          'Immediate Notifications',
-          description: 'Immediate notifications',
-          importance: Importance.high,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
-
-      // Scheduled review channel
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          'scheduled_review_channel',
-          'Scheduled Review',
-          description: 'Notifications for scheduled deck reviews',
-          importance: Importance.high,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
-
-      // Review now channel
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          'review_now_channel',
-          'Review Now',
-          description: 'Notifications for cards due for review',
-          importance: Importance.high,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
-
-      // Overdue cards channel
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          'overdue_cards_channel',
-          'Overdue Cards',
-          description: 'Notifications for overdue cards',
-          importance: Importance.high,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
-
-      // Card review channel
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          'card_review_channel',
-          'Card Review',
-          description: 'Notifications for scheduled card reviews',
-          importance: Importance.defaultImportance,
-          enableVibration: true,
-          playSound: true,
-        ),
-      );
+      for (final channel in channels) {
+        await androidPlugin.createNotificationChannel(channel);
+      }
     }
   }
 
   Future<void> _requestPermissions() async {
     await _notifications.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
-    
     await _notifications.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>()?.requestPermissions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+        IOSFlutterLocalNotificationsPlugin>()?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
   void _onNotificationTapped(NotificationResponse response) {
-    try {
-      final payload = response.payload ?? '';
-      print('Notification tapped: $payload');
-      
-      // Save the notification to our app's notification system
-      _saveNotificationFromResponse(payload);
-      
-      final nav = navigatorKey.currentState;
-      if (nav == null) {
-        print('Navigator not ready; cannot navigate from notification');
-        return;
-      }
+    final payload = response.payload ?? '';
+    AppLogger.notification('Notification tapped: $payload');
+    
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
 
-      if (payload.startsWith('scheduled_review_')) {
-        final deckId = payload.replaceFirst('scheduled_review_', '');
-        _navigateToDeck(nav, deckId);
-        return;
-      }
-      if (payload.startsWith('card_review_')) {
-        // For simplicity, navigate to Mixed Study for now
-        _navigateToMixed(nav);
-        return;
-      }
-
-      switch (payload) {
-        case 'study_reminder':
-          _navigateToMixed(nav);
-          break;
-        case 'review_now':
-          _navigateToMixed(nav);
-          break;
-        case 'overdue_card':
-          _navigateToMixed(nav);
-          break;
-        case 'streak_reminder':
-          // Navigate to stats page for streak achievements
-          nav.pushNamed('/stats');
-          break;
-        default:
-          // no-op
-          break;
-      }
-    } catch (e) {
-      print('Error handling notification tap: $e');
+    if (payload.startsWith('scheduled_review_')) {
+      final deckId = payload.replaceFirst('scheduled_review_', '');
+      _navigateToDeck(nav, deckId);
+    } else if (payload == 'streak_reminder') {
+      nav.pushNamed('/stats');
+    } else if (['study_reminder', 'review_now', 'overdue_card'].contains(payload)) {
+      nav.pushNamed('/study-mixed');
     }
-  }
-
-  void _saveNotificationFromResponse(String payload) {
-    try {
-      NotificationType type;
-      Map<String, dynamic>? data;
-      String title;
-      String message;
-      
-      if (payload.startsWith('scheduled_review_')) {
-        type = NotificationType.studyReminder;
-        title = 'Study Reminder 📚';
-        message = 'Time to review your flashcards!';
-        data = {'deckId': payload.replaceFirst('scheduled_review_', '')};
-      } else if (payload.startsWith('card_review_')) {
-        type = NotificationType.studyReminder;
-        title = 'Card Review Due';
-        message = 'Time to review a flashcard!';
-        data = {'cardId': payload.replaceFirst('card_review_', '')};
-      } else {
-        switch (payload) {
-          case 'study_reminder':
-            type = NotificationType.studyReminder;
-            title = 'Study Reminder 📚';
-            message = 'Time to review your flashcards!';
-            break;
-          case 'review_now':
-            type = NotificationType.studyReminder;
-            title = 'Review Now';
-            message = 'Time to review your cards!';
-            break;
-          case 'overdue_card':
-            type = NotificationType.overdueCards;
-            title = 'Card Overdue';
-            message = 'You have overdue cards to review!';
-            break;
-          case 'streak_reminder':
-            type = NotificationType.streakAchievement;
-            title = 'Amazing Streak! 🔥';
-            message = 'You\'ve achieved a study streak! Keep it up!';
-            break;
-          default:
-            type = NotificationType.general;
-            title = 'Notification';
-            message = 'You have a new notification';
-            break;
-        }
-      }
-      
-      // Save to our notification system
-      saveNotification(
-        title: title,
-        message: message,
-        type: type,
-        data: data,
-      );
-    } catch (e) {
-      print('Error saving notification from response: $e');
-    }
-  }
-
-  void _navigateToMixed(NavigatorState nav) {
-    nav.push(MaterialPageRoute(builder: (_) => const MixedStudyScreen()));
   }
 
   Future<void> _navigateToDeck(NavigatorState nav, String deckId) async {
-    try {
-      final deck = await _dataService.getDeck(deckId);
-      if (deck != null) {
-        nav.push(MaterialPageRoute(builder: (_) => DeckDetailScreen(deck: deck)));
-      } else {
-        _navigateToMixed(nav);
-      }
-    } catch (e) {
-      print('Error navigating to deck: $e');
-      _navigateToMixed(nav);
+    final deck = await DataService().getDeck(deckId);
+    if (deck != null) {
+      nav.pushNamed('/deck-detail', arguments: {'deck': deck});
+    } else {
+      nav.pushNamed('/study-mixed');
     }
   }
 
-  // Daily reminders
-  Future<void> scheduleDailyReminder({
-    required TimeOfDay time,
-    required List<int> daysOfWeek,
-  }) async {
-    try {
-      // Cancel existing daily reminders first
-      await _cancelDailyReminders();
-
-      if (daysOfWeek.isEmpty) return;
-
-      final androidDetails = AndroidNotificationDetails(
-        dailyReminderChannelId,
-        'Daily Study Reminders',
-        channelDescription: 'Reminders to study your flashcards daily',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        enableVibration: true,
-        playSound: true,
-        category: AndroidNotificationCategory.reminder,
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      for (final day in daysOfWeek) {
-        print('Processing day $day (${_getDayName(day)})...');
-        final scheduledTime = _nextInstanceOfDay(time, day);
-        
-        print('Final scheduled time for day $day: ${scheduledTime.toString()}');
-        
-        // Check if this is today
-        final now = tz.TZDateTime.now(tz.local);
-        final today = now.weekday;
-        final isToday = day == today;
-        
-        if (isToday) {
-          // For today, use immediate scheduling without recurring components
-          await _notifications.zonedSchedule(
-            dailyReminderId + day,
-            'Time to Study! 📚',
-            'You have flashcards waiting for review. Keep your streak going!',
-            scheduledTime,
-            details,
-            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-            uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-            // No matchDateTimeComponents for today
-            payload: 'study_reminder',
-          );
-          print('Scheduled TODAY reminder for day $day (${_getDayName(day)}) at ${scheduledTime.toString()}');
-        } else {
-          // For future days, use recurring scheduling
-          await _notifications.zonedSchedule(
-            dailyReminderId + day,
-            'Time to Study! 📚',
-            'You have flashcards waiting for review. Keep your streak going!',
-            scheduledTime,
-            details,
-            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-            uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-            matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-            payload: 'study_reminder',
-          );
-          print('Scheduled FUTURE reminder for day $day (${_getDayName(day)}) at ${scheduledTime.toString()}');
-        }
-        
-        print('Successfully scheduled daily reminder for day $day (${_getDayName(day)}) at ${scheduledTime.toString()}');
-      }
-
-      await _saveReminderSettings(time, daysOfWeek);
-    } catch (e) {
-      print('Error scheduling daily reminders: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> _cancelDailyReminders() async {
-    for (int day = 1; day <= 7; day++) {
-      await _notifications.cancel(dailyReminderId + day);
-    }
-  }
-
-  Future<void> scheduleOverdueCardsReminder() async {
-    try {
-      // Cancel existing overdue reminder
-      await _notifications.cancel(overdueCardsId);
-
-      final overdueCards = await getOverdueCards();
-      if (overdueCards.isEmpty) return;
-
-      final androidDetails = AndroidNotificationDetails(
-        overdueCardsChannelId,
-        'Overdue Cards',
-        channelDescription: 'Reminders for cards that need review',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        enableVibration: true,
-        playSound: true,
-        category: AndroidNotificationCategory.reminder,
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      // Schedule for 2 hours from now
-      final scheduledTime = tz.TZDateTime.now(tz.local).add(const Duration(hours: 2));
-      
-      await _notifications.zonedSchedule(
-        overdueCardsId,
-        'Cards Need Review! ⏰',
-        'You have ${overdueCards.length} overdue cards waiting for review.',
-        scheduledTime,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: 'overdue_card',
-      );
-      
-      print('Scheduled overdue cards reminder for ${scheduledTime.toString()}');
-    } catch (e) {
-      print('Error scheduling overdue cards reminder: $e');
-    }
-  }
-
-  Future<void> scheduleStudyStreakReminder(int streakDays) async {
-    try {
-      // Cancel existing streak reminder
-      await _notifications.cancel(studyStreakId);
-
-      final androidDetails = AndroidNotificationDetails(
-        studyStreakChannelId,
-        'Study Streaks',
-        channelDescription: 'Celebrate your study streaks',
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
-        icon: '@mipmap/ic_launcher',
-        enableVibration: true,
-        playSound: true,
-        category: AndroidNotificationCategory.reminder,
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      // Schedule for 1 hour from now
-      final scheduledTime = tz.TZDateTime.now(tz.local).add(const Duration(hours: 1));
-      
-      final title = 'Amazing Streak! 🔥';
-      final message = 'You\'ve studied for $streakDays days in a row! Keep it up!';
-      
-      await _notifications.zonedSchedule(
-        studyStreakId,
-        title,
-        message,
-        scheduledTime,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: 'streak_reminder',
-      );
-
-      // Also save to app's notification system
-      await saveNotification(
-        title: title,
-        message: message,
-        type: NotificationType.streakAchievement,
-        data: {'streakDays': streakDays},
-      );
-      
-      print('Scheduled study streak reminder for ${scheduledTime.toString()}');
-    } catch (e) {
-      print('Error scheduling study streak reminder: $e');
-    }
-  }
-
-  // Pet notification methods
-  Future<void> schedulePetNotification(String message, {int delayHours = 2}) async {
-    try {
-      final androidDetails = AndroidNotificationDetails(
-        petNotificationChannelId,
-        'Pet Notifications',
-        channelDescription: 'Notifications from your study pet',
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
-        icon: '@mipmap/ic_launcher',
-        enableVibration: true,
-        playSound: true,
-        category: AndroidNotificationCategory.reminder,
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      // Schedule for specified delay from now
-      final scheduledTime = tz.TZDateTime.now(tz.local).add(Duration(hours: delayHours));
-      
-      final notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      
-      final title = 'Your Pet Misses You! 🐾';
-      
-      await _notifications.zonedSchedule(
-        notificationId,
-        title,
-        message,
-        scheduledTime,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      );
-
-      // Also save to app's notification system
-      await saveNotification(
-        title: title,
-        message: message,
-        type: NotificationType.general,
-        data: {'source': 'pet', 'scheduledTime': scheduledTime.toIso8601String()},
-      );
-      
-      print('Scheduled pet notification for ${scheduledTime.toString()}: $message');
-    } catch (e) {
-      print('Error scheduling pet notification: $e');
-    }
-  }
+  // --- IMMEDIATE NOTIFICATIONS ---
 
   Future<void> showPetNotification(String message) async {
-    try {
-      final androidDetails = AndroidNotificationDetails(
-        petNotificationChannelId,
-        'Pet Notifications',
-        channelDescription: 'Notifications from your study pet',
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
-        icon: '@mipmap/ic_launcher',
-        enableVibration: true,
-        playSound: true,
-        category: AndroidNotificationCategory.reminder,
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      final notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      
-      await _notifications.show(
-        notificationId,
-        'Your Pet Misses You! 🐾',
-        message,
-        details,
-      );
-
-      // Also save to app's notification system
-      await saveNotification(
-        title: 'Your Pet Misses You! 🐾',
-        message: message,
-        type: NotificationType.general,
-        data: {'source': 'pet'},
-      );
-      
-      print('Showed pet notification: $message');
-    } catch (e) {
-      print('Error showing pet notification: $e');
-    }
+    const androidDetails = AndroidNotificationDetails(
+      petNotificationChannelId,
+      'Pet Notifications',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      icon: '@mipmap/ic_launcher',
+    );
+    const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+    await _notifications.show(DateTime.now().millisecondsSinceEpoch ~/ 1000, 'Your Pet Misses You! 🐾', message, details);
+    await _repository.save(title: 'Your Pet Misses You! 🐾', message: message, type: NotificationType.general, data: {'source': 'pet'});
   }
 
   Future<void> showStudyReminderNotification(String title, String body) async {
-    try {
-      final androidDetails = AndroidNotificationDetails(
-        overdueCardsChannelId,
-        'Overdue Cards',
-        channelDescription: 'Reminders for cards that need review',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        enableVibration: true,
-        playSound: true,
-        category: AndroidNotificationCategory.reminder,
-        autoCancel: true,
-        ongoing: false,
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-        categoryIdentifier: 'STUDY_REMINDER',
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      final notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      
-      await _notifications.show(
-        notificationId,
-        title,
-        body,
-        details,
-        payload: 'study_reminder',
-      );
-
-      // Also save to app's notification system
-      await saveNotification(
-        title: title,
-        message: body,
-        type: NotificationType.studyReminder,
-      );
-      
-      print('Showed study reminder notification: $title - $body');
-    } catch (e) {
-      print('Error showing study reminder notification: $e');
-    }
-  }
-
-  Future<void> scheduleStudyReminderNotification({
-    required TimeOfDay time,
-    required List<int> daysOfWeek,
-  }) async {
-    try {
-      // Cancel existing study reminder notifications first
-      await _cancelStudyReminderNotifications();
-
-      if (daysOfWeek.isEmpty) return;
-
-      final androidDetails = AndroidNotificationDetails(
-        overdueCardsChannelId,
-        'Overdue Cards',
-        channelDescription: 'Reminders for cards that need review',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        enableVibration: true,
-        playSound: true,
-        category: AndroidNotificationCategory.reminder,
-        autoCancel: true,
-        ongoing: false,
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-        categoryIdentifier: 'STUDY_REMINDER',
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      // Schedule for each selected day
-      for (final dayOfWeek in daysOfWeek) {
-        final scheduledTime = _nextInstanceOfDay(time, dayOfWeek);
-        
-        await _notifications.zonedSchedule(
-          studyStreakId + dayOfWeek, // Unique ID for each day
-          'Study Reminder 📚',
-          'Time to review your flashcards!',
-          scheduledTime,
-          details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-          payload: 'study_reminder',
-          matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-        );
-
-        // Also save to app's notification system as a scheduled notification
-        await saveNotification(
-          title: 'Study Reminder 📚',
-          message: 'Time to review your flashcards!',
-          type: NotificationType.dailyReminder,
-          data: {
-            'scheduledTime': scheduledTime.toIso8601String(),
-            'dayOfWeek': dayOfWeek,
-            'time': '${time.hour}:${time.minute.toString().padLeft(2, '0')}',
-          },
-        );
-        
-        print('Scheduled study reminder for ${scheduledTime.toString()}: ${time.hour}:${time.minute.toString().padLeft(2, '0')} on day $dayOfWeek');
-      }
-    } catch (e) {
-      print('Error scheduling study reminder notifications: $e');
-    }
-  }
-
-  Future<void> _cancelStudyReminderNotifications() async {
-    try {
-      // Cancel all study reminder notifications (IDs 3001-3007 for each day of week)
-      for (int i = 1; i <= 7; i++) {
-        await _notifications.cancel(studyStreakId + i);
-      }
-      print('Cancelled all study reminder notifications');
-    } catch (e) {
-      print('Error cancelling study reminder notifications: $e');
-    }
-  }
-
-  // Helpers - Updated for deck-level scheduling
-  Future<List<Flashcard>> getOverdueCards() async {
-    try {
-      // With deck-level scheduling, individual cards no longer have nextReview dates
-      // This method is kept for backward compatibility but returns empty list
-      // Overdue functionality is now handled at the deck level
-      return [];
-    } catch (e) {
-      print('Error getting overdue cards: $e');
-      return [];
-    }
-  }
-
-  Future<List<Flashcard>> getCardsDueToday() async {
-    try {
-      // With deck-level scheduling, individual cards no longer have nextReview dates
-      // This method is kept for backward compatibility but returns empty list
-      // Due functionality is now handled at the deck level
-      return [];
-    } catch (e) {
-      print('Error getting cards due today: $e');
-      return [];
-    }
-  }
-
-  Future<List<Flashcard>> getCardsDueSoon() async {
-    try {
-      // With deck-level scheduling, individual cards no longer have nextReview dates
-      // This method is kept for backward compatibility but returns empty list
-      // Due functionality is now handled at the deck level
-      return [];
-    } catch (e) {
-      print('Error getting cards due soon: $e');
-      return [];
-    }
-  }
-
-  Future<void> cancelAllNotifications() async => await _notifications.cancelAll();
-  Future<void> cancelNotification(int id) async => await _notifications.cancel(id);
-
-  // Remove the showImmediateNotification method as it's not needed for production
-
-  tz.TZDateTime _nextInstanceOfDay(TimeOfDay time, int dayOfWeek) {
-    // Use detected timezone or fallback to local
-    final timezone = _detectedTimezone ?? tz.local;
-    tz.TZDateTime now = tz.TZDateTime.now(timezone);
-    final today = now.weekday;
-    
-    // If today is the target day and time hasn't passed, schedule for today
-    if (today == dayOfWeek) {
-      final todayScheduledTime = tz.TZDateTime(
-        timezone, 
-        now.year, 
-        now.month, 
-        now.day, 
-        time.hour, 
-        time.minute
-      );
-      
-      if (todayScheduledTime.isAfter(now)) {
-        print('Scheduling reminder for TODAY (day $dayOfWeek) at ${time.hour}:${time.minute} - Time: ${todayScheduledTime.toString()}');
-        return todayScheduledTime;
-      }
-    }
-    
-    // Start with today at the specified time
-    tz.TZDateTime scheduledDate = tz.TZDateTime(
-      timezone, 
-      now.year, 
-      now.month, 
-      now.day, 
-      time.hour, 
-      time.minute
+    const androidDetails = AndroidNotificationDetails(
+      overdueCardsChannelId,
+      'Overdue Cards',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
     );
-
-    // If the time has already passed today, start from tomorrow
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-    }
-
-    // Find the next occurrence of the specified day of the week
-    while (scheduledDate.weekday != dayOfWeek) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-    }
-
-    print('Scheduling reminder for day $dayOfWeek (${_getDayName(dayOfWeek)}) at ${time.hour}:${time.minute} - Next occurrence: ${scheduledDate.toString()}');
-    return scheduledDate;
+    const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+    await _notifications.show(DateTime.now().millisecondsSinceEpoch ~/ 1000, title, body, details, payload: 'study_reminder');
+    await _repository.save(title: title, message: body, type: NotificationType.studyReminder);
   }
 
-  String _getDayName(int day) {
-    const dayNames = [
-      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 
-      'Friday', 'Saturday', 'Sunday'
-    ];
-    return dayNames[day - 1];
+  Future<void> showReviewNowNotification(String deckName, String question, {String? deckId}) async {
+    const androidDetails = AndroidNotificationDetails(
+      'immediate_channel',
+      'Review Now',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+    final details = NotificationDetails(android: androidDetails, iOS: const DarwinNotificationDetails());
+    final title = 'Review Now: $deckName';
+    final message = 'Time to review: $question';
+    await _notifications.show(DateTime.now().millisecondsSinceEpoch ~/ 1000, title, message, details, payload: deckId != null ? 'scheduled_review_$deckId' : 'review_now');
+    await _repository.save(title: title, message: message, type: NotificationType.studyReminder, data: {'deckId': deckId});
   }
 
-  Future<void> _saveReminderSettings(TimeOfDay time, List<int> daysOfWeek) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('reminder_hour', time.hour);
-      await prefs.setInt('reminder_minute', time.minute);
-      await prefs.setStringList('reminder_days', daysOfWeek.map((d) => d.toString()).toList());
-      print('Saved reminder settings: ${time.hour}:${time.minute} on days $daysOfWeek');
-    } catch (e) {
-      print('Error saving reminder settings: $e');
-    }
+  // --- REMINDER SCHEDULING (Delegated to ReminderService) ---
+
+  Future<void> scheduleDailyReminder({required TimeOfDay time, required List<int> daysOfWeek}) =>
+      _reminderService.scheduleDailyReminder(time: time, daysOfWeek: daysOfWeek);
+
+  Future<void> scheduleOverdueCardsReminder([int count = 0]) => _reminderService.scheduleOverdueCardsReminder(count);
+
+  Future<void> scheduleStudyStreakReminder(int streakDays) => _reminderService.scheduleStudyStreakReminder(streakDays);
+
+  Future<void> schedulePetNotification(String message, {int delayHours = 2}) =>
+      _reminderService.schedulePetNotification(message, delayHours: delayHours);
+
+  Future<void> scheduleCardReviewNotification(Flashcard flashcard, Deck deck, DateTime nextReview) =>
+      _reminderService.scheduleCardReviewNotification(flashcard, deck, nextReview);
+
+  // --- REPOSITORY DELEGATES ---
+
+  Future<void> saveNotification({required String title, required String message, required NotificationType type, Map<String, dynamic>? data}) =>
+      _repository.save(title: title, message: message, type: type, data: data);
+
+  Future<List<AppNotification>> getNotifications() => _repository.getAll();
+  
+  Future<void> markNotificationAsRead(String id) => _repository.markAsRead(id);
+  Future<void> markAllNotificationsAsRead() => _repository.markAllAsRead();
+  Future<void> deleteNotification(String id) => _repository.delete(id);
+
+  // --- SETTINGS & PERMISSIONS ---
+
+  Future<bool> areNotificationsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('overdue_reminders_enabled') ?? true;
   }
 
   Future<Map<String, dynamic>?> getReminderSettings() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final hour = prefs.getInt('reminder_hour');
-      final minute = prefs.getInt('reminder_minute');
-      final daysList = prefs.getStringList('reminder_days');
-      if (hour == null || minute == null || daysList == null) return null;
-      final days = daysList.map((d) => int.parse(d)).toList();
-      return {'time': TimeOfDay(hour: hour, minute: minute), 'daysOfWeek': days};
-    } catch (e) {
-      print('Error getting reminder settings: $e');
-      return null;
-    }
-  }
-
-  Future<bool> areNotificationsEnabled() async {
-    try {
-      final androidPlugin = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      return await androidPlugin?.areNotificationsEnabled() ?? false;
-    } catch (e) {
-      print('Error checking notification status: $e');
-      return false;
-    }
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('reminder_hour')) return null;
+    
+    return {
+      'hour': prefs.getInt('reminder_hour') ?? 9,
+      'minute': prefs.getInt('reminder_minute') ?? 0,
+      'days': prefs.getStringList('reminder_days') ?? ['1', '2', '3', '4', '5', '6', '7'],
+    };
   }
 
   Future<bool> requestNotificationPermissions() async {
-    try {
-      final androidPlugin = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      return await androidPlugin?.requestNotificationsPermission() ?? false;
-    } catch (e) {
-      print('Error requesting notification permissions: $e');
-      return false;
-    }
+    final android = await _notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
+    final ios = await _notifications.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>()?.requestPermissions(alert: true, badge: true, sound: true);
+    return (android ?? false) || (ios ?? false);
   }
 
-  // Method to check and reschedule notifications if needed
-  Future<void> checkAndRescheduleNotifications() async {
-    try {
-      final settings = await getReminderSettings();
-      if (settings != null) {
-        print('Rescheduling daily reminders with settings: ${settings['time']} on days ${settings['daysOfWeek']}');
-        await scheduleDailyReminder(
-          time: settings['time'] as TimeOfDay,
-          daysOfWeek: List<int>.from(settings['daysOfWeek']),
-        );
-      } else {
-        print('No reminder settings found - skipping reschedule');
-      }
-    } catch (e) {
-      print('Error rescheduling notifications: $e');
-    }
-  }
+  // --- COMPATIBILITY HELPERS ---
 
-  // Method to manually trigger daily reminders for testing
-  Future<void> triggerDailyReminders() async {
-    try {
-      final settings = await getReminderSettings();
-      if (settings != null) {
-        print('Manually triggering daily reminders...');
-        await scheduleDailyReminder(
-          time: settings['time'] as TimeOfDay,
-          daysOfWeek: List<int>.from(settings['daysOfWeek']),
-        );
-      } else {
-        print('No reminder settings found');
-      }
-    } catch (e) {
-      print('Error triggering daily reminders: $e');
-    }
-  }
+  Future<List<Flashcard>> getOverdueCards() async => [];
+  Future<List<Flashcard>> getCardsDueToday() async => [];
+  Future<List<Flashcard>> getCardsDueSoon() async => [];
 
-  // Method to cancel and reschedule all daily reminders (for testing)
-  Future<void> cancelAndRescheduleDailyReminders() async {
-    try {
-      print('Cancelling all daily reminders...');
-      await _cancelDailyReminders();
-      
-      final settings = await getReminderSettings();
-      if (settings != null) {
-        print('Rescheduling daily reminders...');
-        await scheduleDailyReminder(
-          time: settings['time'] as TimeOfDay,
-          daysOfWeek: List<int>.from(settings['daysOfWeek']),
-        );
-      } else {
-        print('No reminder settings found');
-      }
-    } catch (e) {
-      print('Error cancelling and rescheduling daily reminders: $e');
-    }
-  }
+  Future<void> updateDeckReviewNotification(Deck deck) async {}
+  Future<void> updateFlashcardReviewNotification(Flashcard card, Deck deck) async {}
+  Future<void> cancelDeckReviewNotification(String deckId) async {}
 
-  // Method to schedule a reminder for today at a specific time (for testing)
-  Future<void> scheduleReminderForToday(TimeOfDay time) async {
-    try {
-      final now = tz.TZDateTime.now(tz.local);
-      final today = now.weekday;
-      
-      // Check if the time has already passed today
-      final scheduledTime = tz.TZDateTime(
-        tz.local, 
-        now.year, 
-        now.month, 
-        now.day, 
-        time.hour, 
-        time.minute
-      );
-      
-      if (scheduledTime.isBefore(now)) {
-        print('Time ${time.hour}:${time.minute} has already passed today. Scheduling for tomorrow.');
-        return;
-      }
-
-      final androidDetails = AndroidNotificationDetails(
-        dailyReminderChannelId,
-        'Daily Study Reminders',
-        channelDescription: 'Reminders to study your flashcards daily',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        enableVibration: true,
-        playSound: true,
-        category: AndroidNotificationCategory.reminder,
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      // Schedule for today
-      await _notifications.zonedSchedule(
-        dailyReminderId + today,
-        'Time to Study! 📚',
-        'You have flashcards waiting for review. Keep your streak going!',
-        scheduledTime,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      );
-      
-      print('Scheduled reminder for TODAY at ${time.hour}:${time.minute} - Time: ${scheduledTime.toString()}');
-    } catch (e) {
-      print('Error scheduling reminder for today: $e');
-    }
-  }
-
-  // Helper method to check if a time can be scheduled for today
-  bool canScheduleForToday(TimeOfDay time) {
-    final now = DateTime.now();
-    final scheduledTime = DateTime(now.year, now.month, now.day, time.hour, time.minute);
-    return scheduledTime.isAfter(now);
-  }
-
-  // Debug method to get all pending notifications
-  Future<List<PendingNotificationRequest>> getPendingNotifications() async {
-    try {
-      return await _notifications.pendingNotificationRequests();
-    } catch (e) {
-      print('Error getting pending notifications: $e');
-      return [];
-    }
-  }
-
-  // Debug method to print all pending notifications
-  Future<void> printPendingNotifications() async {
-    try {
-      final pending = await getPendingNotifications();
-      print('=== PENDING NOTIFICATIONS ===');
-      if (pending.isEmpty) {
-        print('No pending notifications');
-      } else {
-        for (final notification in pending) {
-          print('ID: ${notification.id}, Title: ${notification.title}, Body: ${notification.body}');
-        }
-      }
-      print('=============================');
-    } catch (e) {
-      print('Error printing pending notifications: $e');
-    }
-  }
-
-  // Debug method to check notification channel status
-  Future<void> checkNotificationChannels() async {
-    try {
-      final androidPlugin = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      if (androidPlugin != null) {
-        print('=== NOTIFICATION CHANNELS ===');
-        
-        // Check if channels exist
-        final channels = await androidPlugin.getNotificationChannels();
-        if (channels != null && channels.isNotEmpty) {
-          for (final channel in channels) {
-            print('Channel: ${channel.id} - ${channel.name}');
-            print('  Importance: ${channel.importance}');
-            print('  Sound: ${channel.playSound}');
-            print('  Vibration: ${channel.enableVibration}');
-            print('  Show Badge: ${channel.showBadge}');
-          }
-        } else {
-          print('No notification channels found');
-        }
-        
-        // Check notification permissions
-        final areEnabled = await androidPlugin.areNotificationsEnabled();
-        print('Notifications enabled: $areEnabled');
-        
-        print('=============================');
-      }
-    } catch (e) {
-      print('Error checking notification channels: $e');
-    }
-  }
-
-
-
-  // Scheduled Review Notification Methods
-  Future<void> scheduleDeckReviewNotification(Deck deck) async {
-    if (deck.scheduledReviewEnabled != true) {
-      return;
-    }
-    if (deck.scheduledReviewTime == null) {
-      return;
-    }
-
-    try {
-      final timezone = _detectedTimezone ?? tz.local;
-      final scheduledTime = tz.TZDateTime.from(deck.scheduledReviewTime!, timezone);
-      
-      // Don't schedule if the time has already passed
-      if (scheduledTime.isBefore(tz.TZDateTime.now(timezone))) {
-        print('Scheduled review time has already passed for deck: ${deck.name}');
-        return;
-      }
-
-      const androidDetails = AndroidNotificationDetails(
-        'scheduled_review_channel',
-        'Scheduled Review',
-        channelDescription: 'Notifications for scheduled deck reviews',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        color: Color(0xFF2196F3),
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      // Use deck ID as notification ID to avoid duplicates
-      final notificationId = 5000 + (deck.id.hashCode % 1000);
-
-      await _notifications.zonedSchedule(
-        notificationId,
-        'Time to Review: ${deck.name}',
-        'Your scheduled review for "${deck.name}" is due now!',
-        scheduledTime,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: 'scheduled_review_${deck.id}',
-      );
-
-      print('Scheduled review notification set for deck "${deck.name}" at ${scheduledTime.toString()}');
-    } catch (e) {
-      print('Error scheduling deck review notification: $e');
-    }
-  }
-
-  Future<void> cancelDeckReviewNotification(Deck deck) async {
-    try {
-      // Use the same ID generation logic as in scheduleDeckReviewNotification
-      final notificationId = 5000 + (deck.id.hashCode % 1000);
-      await _notifications.cancel(notificationId);
-      print('Cancelled scheduled review notification for deck: ${deck.name}');
-    } catch (e) {
-      print('Error cancelling deck review notification: $e');
-    }
-  }
-
-  Future<void> updateDeckReviewNotification(Deck deck) async {
-    // Cancel existing notification and schedule new one
-    await cancelDeckReviewNotification(deck);
-    await scheduleDeckReviewNotification(deck);
-  }
-
-  // Method to check and schedule all deck review notifications
-  Future<void> scheduleAllDeckReviewNotifications() async {
-    try {
-      final decks = await _dataService.getDecks();
-      for (final deck in decks) {
-        if (deck.scheduledReviewEnabled == true && deck.scheduledReviewTime != null) {
-          await scheduleDeckReviewNotification(deck);
-        }
-      }
-      print('Scheduled review notifications updated for all decks');
-    } catch (e) {
-      print('Error scheduling all deck review notifications: $e');
-    }
-  }
-
-  // Show review now notification
-  Future<void> showReviewNowNotification(String deckName, String question, {String? deckId}) async {
-    try {
-      const androidDetails = AndroidNotificationDetails(
-        'review_now_channel',
-        'Review Now',
-        channelDescription: 'Notifications for cards due for review',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        color: Color(0xFF4CAF50),
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      final title = 'Review Now: $deckName';
-      final message = 'Time to review: ${question.length > 50 ? question.substring(0, 50) + '...' : question}';
-      
-      await _notifications.show(
-        DateTime.now().millisecondsSinceEpoch % 100000,
-        title,
-        message,
-        details,
-        payload: deckId != null ? 'scheduled_review_$deckId' : 'review_now',
-      );
-
-      // Also save to app's notification system
-      await saveNotification(
-        title: title,
-        message: message,
-        type: NotificationType.studyReminder,
-        data: {
-          'deckName': deckName, 
-          'question': question,
-          if (deckId != null) 'deckId': deckId,
-        },
-      );
-    } catch (e) {
-      print('Error showing review now notification: $e');
-    }
-  }
-
-  // Show overdue card notification
-  Future<void> showOverdueCardNotification(String deckName, String question, {String? deckId}) async {
-    try {
-      const androidDetails = AndroidNotificationDetails(
-        'overdue_cards_channel',
-        'Overdue Cards',
-        channelDescription: 'Notifications for overdue cards',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        color: Color(0xFFFF5722),
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      final title = 'Card Overdue: $deckName';
-      final message = 'Time to review: ${question.length > 50 ? question.substring(0, 50) + '...' : question}';
-      
-      await _notifications.show(
-        DateTime.now().millisecondsSinceEpoch % 100000,
-        title,
-        message,
-        details,
-        payload: deckId != null ? 'scheduled_review_$deckId' : 'overdue_card',
-      );
-
-      // Also save to app's notification system
-      await saveNotification(
-        title: title,
-        message: message,
-        type: NotificationType.overdueCards,
-        data: {
-          'deckName': deckName, 
-          'question': question,
-          if (deckId != null) 'deckId': deckId,
-        },
-      );
-    } catch (e) {
-      print('Error showing overdue card notification: $e');
-    }
-  }
-
-  // Schedule notification for next card review
-  Future<void> scheduleCardReviewNotification(Flashcard flashcard, Deck deck, DateTime nextReview) async {
-    try {
-      const androidDetails = AndroidNotificationDetails(
-        'card_review_channel',
-        'Card Review',
-        channelDescription: 'Notifications for scheduled card reviews',
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
-        icon: '@mipmap/ic_launcher',
-        color: Color(0xFF4CAF50),
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
-
-      // Use flashcard ID as notification ID
-      final notificationId = 6000 + (flashcard.id.hashCode % 1000);
-
-      final timezone = _detectedTimezone ?? tz.local;
-      final scheduledTime = tz.TZDateTime.from(nextReview, timezone);
-
-      await _notifications.zonedSchedule(
-        notificationId,
-        'Review Due: ${deck.name}',
-        'Time to review: ${flashcard.question.length > 50 ? flashcard.question.substring(0, 50) + '...' : flashcard.question}',
-        scheduledTime,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: 'card_review_${flashcard.id}',
-      );
-
-      print('Scheduled card review notification for ${flashcard.id} at ${scheduledTime.toString()}');
-    } catch (e) {
-      print('Error scheduling card review notification: $e');
-    }
-  }
-
-  // Save notification to app's notification system
-  Future<void> saveNotification({
-    required String title,
-    required String message,
-    required NotificationType type,
-    Map<String, dynamic>? data,
-  }) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final existingNotificationsJson = prefs.getStringList('app_notifications') ?? [];
-      
-      // Parse existing notifications
-      final existingNotifications = existingNotificationsJson
-          .map((jsonString) {
-            try {
-              final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
-              return AppNotification.fromJson(jsonMap);
-            } catch (e) {
-              print('Error parsing notification JSON: $e');
-              return null;
-            }
-          })
-          .where((notification) => notification != null)
-          .cast<AppNotification>()
-          .toList();
-      
-      // Create new notification
-      final newNotification = AppNotification(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        title: title,
-        message: message,
-        type: type,
-        timestamp: DateTime.now(),
-        data: data,
-      );
-      
-      // Add to beginning of list (newest first)
-      existingNotifications.insert(0, newNotification);
-      
-      // Keep only the last 50 notifications
-      if (existingNotifications.length > 50) {
-        existingNotifications.removeRange(50, existingNotifications.length);
-      }
-      
-      // Save back to shared preferences
-      final updatedNotificationsJson = existingNotifications
-          .map((notification) => jsonEncode(notification.toJson()))
-          .toList();
-      await prefs.setStringList('app_notifications', updatedNotificationsJson);
-      
-      print('Saved notification: $title');
-    } catch (e) {
-      print('Error saving notification: $e');
-    }
-  }
-
-  // Get all notifications from app's notification system
-  Future<List<AppNotification>> getNotifications() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final notificationsJson = prefs.getStringList('app_notifications') ?? [];
-      
-      final notifications = notificationsJson
-          .map((jsonString) {
-            try {
-              final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
-              return AppNotification.fromJson(jsonMap);
-            } catch (e) {
-              print('Error parsing notification JSON: $e');
-              return null;
-            }
-          })
-          .where((notification) => notification != null)
-          .cast<AppNotification>()
-          .toList();
-      
-      // Sort by timestamp (newest first)
-      notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      
-      return notifications;
-    } catch (e) {
-      print('Error getting notifications: $e');
-      return [];
-    }
-  }
-
-  // Mark notification as read
-  Future<void> markNotificationAsRead(String notificationId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final notificationsJson = prefs.getStringList('app_notifications') ?? [];
-      
-      final notifications = notificationsJson
-          .map((jsonString) {
-            try {
-              final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
-              return AppNotification.fromJson(jsonMap);
-            } catch (e) {
-              print('Error parsing notification JSON: $e');
-              return null;
-            }
-          })
-          .where((notification) => notification != null)
-          .cast<AppNotification>()
-          .toList();
-      
-      final updatedNotifications = notifications.map((notification) {
-        if (notification.id == notificationId) {
-          return notification.copyWith(isRead: true);
-        }
-        return notification;
-      }).toList();
-      
-      final updatedNotificationsJson = updatedNotifications
-          .map((notification) => jsonEncode(notification.toJson()))
-          .toList();
-      await prefs.setStringList('app_notifications', updatedNotificationsJson);
-    } catch (e) {
-      print('Error marking notification as read: $e');
-    }
-  }
-
-  // Mark all notifications as read
-  Future<void> markAllNotificationsAsRead() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final notificationsJson = prefs.getStringList('app_notifications') ?? [];
-      
-      final notifications = notificationsJson
-          .map((jsonString) {
-            try {
-              final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
-              return AppNotification.fromJson(jsonMap);
-            } catch (e) {
-              print('Error parsing notification JSON: $e');
-              return null;
-            }
-          })
-          .where((notification) => notification != null)
-          .cast<AppNotification>()
-          .toList();
-      
-      final updatedNotifications = notifications
-          .map((notification) => notification.copyWith(isRead: true))
-          .toList();
-      
-      final updatedNotificationsJson = updatedNotifications
-          .map((notification) => jsonEncode(notification.toJson()))
-          .toList();
-      await prefs.setStringList('app_notifications', updatedNotificationsJson);
-    } catch (e) {
-      print('Error marking all notifications as read: $e');
-    }
-  }
-
-  // Delete notification
-  Future<void> deleteNotification(String notificationId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final notificationsJson = prefs.getStringList('app_notifications') ?? [];
-      
-      final notifications = notificationsJson
-          .map((jsonString) {
-            try {
-              final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
-              return AppNotification.fromJson(jsonMap);
-            } catch (e) {
-              print('Error parsing notification JSON: $e');
-              return null;
-            }
-          })
-          .where((notification) => notification != null)
-          .cast<AppNotification>()
-          .toList();
-      
-      final updatedNotifications = notifications
-          .where((notification) => notification.id != notificationId)
-          .toList();
-      
-      final updatedNotificationsJson = updatedNotifications
-          .map((notification) => jsonEncode(notification.toJson()))
-          .toList();
-      await prefs.setStringList('app_notifications', updatedNotificationsJson);
-    } catch (e) {
-      print('Error deleting notification: $e');
-    }
-  }
+  static const int dailyReminderId = 1000;
+  
+  Future<void> cancelAllNotifications() => _notifications.cancelAll();
+  Future<void> cancelNotification(int id) => _notifications.cancel(id);
+  
+  Future<void> checkAndRescheduleNotifications() async {}
 }

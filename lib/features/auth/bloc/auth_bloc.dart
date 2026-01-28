@@ -80,7 +80,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(state.copyWith(isLoading: true, errorMessage: null, signedIn: false));
     try {
-      await authService.createAccout(email: event.email.trim(), password: event.password);
+      await authService.createAccount(email: event.email.trim(), password: event.password);
       emit(state.copyWith(isLoading: false, signedIn: true));
     } catch (e) {
       emit(state.copyWith(isLoading: false, errorMessage: 'Sign up failed: ${e.toString()}', signedIn: false));

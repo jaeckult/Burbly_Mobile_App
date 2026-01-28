@@ -44,8 +44,11 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
       
       final settings = await _notificationService.getReminderSettings();
       if (settings != null) {
-        _selectedTime = settings['time'] as TimeOfDay;
-        _selectedDays = List<int>.from(settings['daysOfWeek']);
+        _selectedTime = TimeOfDay(
+          hour: settings['hour'] as int,
+          minute: settings['minute'] as int,
+        );
+        _selectedDays = (settings['days'] as List<String>).map(int.parse).toList();
         _dailyRemindersEnabled = true;
       }
       

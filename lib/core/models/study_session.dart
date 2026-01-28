@@ -82,4 +82,7 @@ class StudySession extends HiveObject {
       usedTimer: json['usedTimer'],
     );
   }
+
+  Map<String, dynamic> toMap() => toJson();
+  factory StudySession.fromMap(Map<String, dynamic> map) => StudySession.fromJson(map);
 }

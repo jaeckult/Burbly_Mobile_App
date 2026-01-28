@@ -1,68 +1,38 @@
 import 'package:flutter/material.dart';
-// duplicate import removed
 import 'package:firebase_core/firebase_core.dart';
 import 'package:adaptive_theme/adaptive_theme.dart';
 import 'firebase_options.dart';
-// import 'features/auth/auth_service.dart';
 import 'features/auth/screens/welcome_screen.dart';
 import 'features/flashcards/deck_list/view/deck_pack_list_screen.dart';
 import 'features/flashcards/home/screens/flashcard_home_screen.dart';
 import 'features/auth/screens/privacy_policy_screen.dart';
 import 'core/core.dart';
-import 'core/services/notification_service.dart';
-import 'core/services/background_service.dart';
 import 'core/services/adaptive_theme_service.dart';
-import 'core/services/pet_service.dart';
+import 'core/services/initialization_service.dart';
+import 'core/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'features/auth/bloc/auth_bloc.dart';
-import 'features/auth/services/auth_service.dart';
+import 'features/flashcards/study/screens/mixed_study_screen.dart';
+import 'features/flashcards/deck_detail/view/deck_detail_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    // Initialize Firebase first
+    // CRITICAL ONLY: Initialize Firebase and service locator
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
     
-    // Initialize core services
-    await DataService().initialize();
+    await setupServiceLocator();
+    AppLogger.info('Service locator initialized');
     
-    // Verify data persistence after initialization
-    try {
-      final dataService = DataService();
-      final integrityCheck = await dataService.checkDataIntegrity();
-      print('Data integrity check completed: ${integrityCheck['status']}');
-    } catch (e) {
-      print('Warning: Could not verify data integrity: $e');
-    }
-    
-    // Initialize NotificationService with error handling
-    try {
-      await NotificationService().initialize();
-      print('Notification service initialized successfully');
-    } catch (e) {
-      print('Warning: Notification service failed to initialize: $e');
-      // Continue without notifications rather than crashing the app
-    }
-    
-    // Initialize other services
-    await PetService().initialize();
-    
-    // Start background service after notifications are set up
-    try {
-      await BackgroundService().start();
-      print('Background service started successfully');
-    } catch (e) {
-      print('Warning: Background service failed to start: $e');
-    }
-    
+    // Show UI immediately - other services initialize in background
     runApp(const MyApp());
   } catch (e) {
-    print('Error during app initialization: $e');
+    AppLogger.error('Error during critical initialization', error: e);
     // Still run the app even if initialization fails
     runApp(const MyApp());
   }
@@ -80,21 +50,40 @@ class MyApp extends StatelessWidget {
       builder: (theme, darkTheme) => MultiBlocProvider(
         providers: [
           BlocProvider<AuthBloc>(
-            create: (_) => AuthBloc(AuthService()),
+            create: (_) => AuthBloc(locator.authService),
           ),
         ],
         child: MaterialApp(
-          title: 'Burbly',
+          title: AppStrings.appName,
           debugShowCheckedModeBanner: false,
           theme: theme,
           darkTheme: darkTheme,
-          navigatorKey: NotificationService().navigatorKey,
+          navigatorKey: locator.notificationService.navigatorKey,
           home: const _RootScreen(),
+          onGenerateRoute: (settings) {
+            if (settings.name == '/home') {
+              return MaterialPageRoute(builder: (_) => const DeckPackListScreen());
+            }
+            if (settings.name == '/flashcards') {
+              return MaterialPageRoute(builder: (_) => const FlashcardHomeScreen());
+            }
+            if (settings.name == '/privacy') {
+              return MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen());
+            }
+            if (settings.name == '/study-mixed') {
+              return MaterialPageRoute(builder: (_) => const MixedStudyScreen());
+            }
+            if (settings.name == '/deck-detail') {
+              final args = settings.arguments as Map<String, dynamic>?;
+              final deck = args?['deck'] as Deck?;
+              if (deck != null) {
+                return MaterialPageRoute(builder: (_) => DeckDetailScreen(deck: deck));
+              }
+            }
+            return null;
+          },
           routes: {
-            '/home': (context) => const DeckPackListScreen(),
-            '/flashcards': (context) => const FlashcardHomeScreen(),
             '/transitions': (context) => const TransitionDemoScreen(),
-            '/privacy': (context) => const PrivacyPolicyScreen(),
           },
         ),
       ),
@@ -111,70 +100,100 @@ class _RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<_RootScreen> {
-  Widget? _screen;
+  late Future<Widget> _screenFuture;
+  final _initService = InitializationService();
 
   @override
   void initState() {
     super.initState();
-    _decideStart();
+    _screenFuture = _decideStartScreen();
+    // Initialize services in background (non-blocking)
+    _initService.initializeServices().then((_) {
+      // Verify data integrity after services are ready
+      _initService.verifyDataIntegrity();
+    });
   }
 
-  Future<void> _decideStart() async {
+  Future<Widget> _decideStartScreen() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      // Add timeout to prevent indefinite loading
+      final prefs = await SharedPreferences.getInstance()
+          .timeout(const Duration(seconds: 2));
+      
       final isFirstLaunch = prefs.getBool('isFirstLaunch') ?? true;
       final isGuestMode = prefs.getBool('isGuestMode') ?? false;
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = locator.firebaseAuth.currentUser;
 
       // Only show welcome/login on fresh install; otherwise go straight to home
       if (isFirstLaunch) {
-        setState(() => _screen = const WelcomeScreen());
+        return const WelcomeScreen();
       } else if (!isGuestMode && currentUser == null) {
-        // If not first launch but no signed-in user and not in guest mode, show welcome
-        setState(() => _screen = const WelcomeScreen());
+        return const WelcomeScreen();
       } else {
-        setState(() => _screen = const DeckPackListScreen());
+        return const DeckPackListScreen();
       }
-    } catch (_) {
-      // Fallback to home
-      setState(() => _screen = const DeckPackListScreen());
+    } catch (e) {
+      AppLogger.warning('Error deciding start screen, defaulting to home: $e');
+      // Fallback to home on timeout or error
+      return const DeckPackListScreen();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_screen == null) {
-      return Scaffold(
-        body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFFFFFFF), Color(0xFFF5F7FA)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return FutureBuilder<Widget>(
+      future: _screenFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return snapshot.data!;
+        }
+        
+        // Show loading screen while deciding
+        return Scaffold(
+          body: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.backgroundLight, 
+                  AppColors.surfaceVariantLight,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
-          ),
-          child: Center(
-            child: Text(
-              'Burbly',
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.0,
-                    color: Colors.black87,
-                  ) ?? const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.0,
-                    color: Colors.black87,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.school,
+                    size: AppDimensions.iconHero,
+                    color: AppColors.primary,
                   ),
+                  const SizedBox(height: AppDimensions.spacingLg),
+                  Text(
+                    AppStrings.appName,
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                      color: AppColors.textPrimaryLight,
+                    ) ?? const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
+                      color: AppColors.textPrimaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.spacingXl),
+                  const CircularProgressIndicator(),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    }
-    return _screen!;
+        );
+      },
+    );
   }
 }
-
-

@@ -36,7 +36,7 @@ class _TrashScreenState extends State<TrashScreen> {
   }
 
   Future<void> _restore(TrashItem item) async {
-    await _dataService.restoreTrashItem(item);
+    await _dataService.restoreTrashItem(item.id);
     await _load();
     if (mounted) {
       SnackbarUtils.showSuccessSnackbar(context, 'Restored ${item.itemType}');

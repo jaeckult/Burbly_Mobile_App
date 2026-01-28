@@ -4,7 +4,6 @@ class TrashService {
   final DataService _dataService = DataService();
 
   Future<List<Deck>> getDeletedDecks() async {
-    // Use trash box to determine deleted items
     final trashItems = await _dataService.getTrashItems();
     final deckIds = trashItems.where((item) => item.itemType == 'deck').map((item) => item.originalId).toList();
     final allDecks = await _dataService.getDecks();
@@ -27,72 +26,54 @@ class TrashService {
 
   Future<void> restoreDeck(String deckId) async {
     final trashItems = await _dataService.getTrashItems();
-    final item = trashItems.firstWhere((t) => t.itemType == 'deck' && t.originalId == deckId, orElse: () => throw Exception('Trash item not found'));
-    await _dataService.restoreTrashItem(item);
+    final item = trashItems.firstWhere((t) => t.itemType == 'deck' && t.originalId == deckId);
+    await _dataService.restoreTrashItem(item.id);
   }
 
   Future<void> restoreFlashcard(String flashcardId) async {
     final trashItems = await _dataService.getTrashItems();
-    final item = trashItems.firstWhere((t) => t.itemType == 'flashcard' && t.originalId == flashcardId, orElse: () => throw Exception('Trash item not found'));
-    await _dataService.restoreTrashItem(item);
+    final item = trashItems.firstWhere((t) => t.itemType == 'flashcard' && t.originalId == flashcardId);
+    await _dataService.restoreTrashItem(item.id);
   }
 
   Future<void> restoreNote(String noteId) async {
     final trashItems = await _dataService.getTrashItems();
-    final item = trashItems.firstWhere((t) => t.itemType == 'note' && t.originalId == noteId, orElse: () => throw Exception('Trash item not found'));
-    await _dataService.restoreTrashItem(item);
+    final item = trashItems.firstWhere((t) => t.itemType == 'note' && t.originalId == noteId);
+    await _dataService.restoreTrashItem(item.id);
   }
 
   Future<void> permanentlyDeleteDeck(String deckId) async {
     final trashItems = await _dataService.getTrashItems();
-    final item = trashItems.firstWhere((t) => t.itemType == 'deck' && t.originalId == deckId, orElse: () => throw Exception('Trash item not found'));
-    await _dataService.deleteDeck(deckId);
+    final item = trashItems.firstWhere((t) => t.itemType == 'deck' && t.originalId == deckId);
     await _dataService.deleteTrashItemForever(item.id);
   }
 
   Future<void> permanentlyDeleteFlashcard(String flashcardId) async {
     final trashItems = await _dataService.getTrashItems();
-    final item = trashItems.firstWhere((t) => t.itemType == 'flashcard' && t.originalId == flashcardId, orElse: () => throw Exception('Trash item not found'));
-    await _dataService.deleteFlashcard(flashcardId);
+    final item = trashItems.firstWhere((t) => t.itemType == 'flashcard' && t.originalId == flashcardId);
     await _dataService.deleteTrashItemForever(item.id);
   }
 
   Future<void> permanentlyDeleteNote(String noteId) async {
     final trashItems = await _dataService.getTrashItems();
-    final item = trashItems.firstWhere((t) => t.itemType == 'note' && t.originalId == noteId, orElse: () => throw Exception('Trash item not found'));
-    await _dataService.deleteNote(noteId);
+    final item = trashItems.firstWhere((t) => t.itemType == 'note' && t.originalId == noteId);
     await _dataService.deleteTrashItemForever(item.id);
   }
 
   Future<void> emptyTrash() async {
-    final deletedDecks = await getDeletedDecks();
-    final deletedFlashcards = await getDeletedFlashcards();
-    final deletedNotes = await getDeletedNotes();
-
-    // Permanently delete all items in trash
-    for (final deck in deletedDecks) {
-      await permanentlyDeleteDeck(deck.id);
-    }
-
-    for (final flashcard in deletedFlashcards) {
-      await permanentlyDeleteFlashcard(flashcard.id);
-    }
-
-    for (final note in deletedNotes) {
-      await permanentlyDeleteNote(note.id);
+    final trashItems = await _dataService.getTrashItems();
+    for (final item in trashItems) {
+      await _dataService.deleteTrashItemForever(item.id);
     }
   }
 
   Future<Map<String, int>> getTrashCounts() async {
-    final deletedDecks = await getDeletedDecks();
-    final deletedFlashcards = await getDeletedFlashcards();
-    final deletedNotes = await getDeletedNotes();
-
+    final trashItems = await _dataService.getTrashItems();
     return {
-      'decks': deletedDecks.length,
-      'flashcards': deletedFlashcards.length,
-      'notes': deletedNotes.length,
-      'total': deletedDecks.length + deletedFlashcards.length + deletedNotes.length,
+      'decks': trashItems.where((t) => t.itemType == 'deck').length,
+      'flashcards': trashItems.where((t) => t.itemType == 'flashcard').length,
+      'notes': trashItems.where((t) => t.itemType == 'note').length,
+      'total': trashItems.length,
     };
   }
 }

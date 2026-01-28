@@ -217,9 +217,14 @@ class _SignupScreenState extends State<SignupScreen> {
                   // Google Sign In Button
                   OutlinedButton.icon(
                     onPressed: state.isLoading ? null : _signInWithGoogle,
-                    icon: Image.network(
-                      'https://developers.google.com/identity/images/g-logo.png',
+                    icon: Image.asset(
+                      'assets/google_logo.png',
                       height: 24,
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.g_mobiledata,
+                        size: 24,
+                        color: Colors.red,
+                      ),
                     ),
                     label: const Text('Continue with Google'),
                     style: OutlinedButton.styleFrom(

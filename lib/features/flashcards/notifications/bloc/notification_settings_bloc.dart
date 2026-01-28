@@ -37,8 +37,11 @@ class NotificationSettingsBloc extends Bloc<NotificationSettingsEvent, Notificat
       bool dailyEnabled = state.dailyRemindersEnabled;
       final settings = await _notificationService.getReminderSettings();
       if (settings != null) {
-        selectedTime = settings['time'] as TimeOfDay;
-        selectedDays = List<int>.from(settings['daysOfWeek']);
+        selectedTime = TimeOfDay(
+          hour: settings['hour'] as int,
+          minute: settings['minute'] as int,
+        );
+        selectedDays = (settings['days'] as List<String>).map(int.parse).toList();
         dailyEnabled = true;
       }
 
