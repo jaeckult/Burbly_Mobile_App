@@ -9,6 +9,7 @@ import 'features/auth/screens/privacy_policy_screen.dart';
 import 'core/core.dart';
 import 'core/services/adaptive_theme_service.dart';
 import 'core/services/initialization_service.dart';
+import 'core/animations/page_transitions.dart';
 import 'core/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -56,8 +57,13 @@ class MyApp extends StatelessWidget {
         child: MaterialApp(
           title: AppStrings.appName,
           debugShowCheckedModeBanner: false,
-          theme: theme,
-          darkTheme: darkTheme,
+          // Apply global page transitions for consistent motion
+          theme: theme.copyWith(
+            pageTransitionsTheme: AppPageTransitions.theme,
+          ),
+          darkTheme: darkTheme.copyWith(
+            pageTransitionsTheme: AppPageTransitions.theme,
+          ),
           navigatorKey: locator.notificationService.navigatorKey,
           home: const _RootScreen(),
           onGenerateRoute: (settings) {
@@ -90,7 +96,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
 
 class _RootScreen extends StatefulWidget {
   const _RootScreen({Key? key}) : super(key: key);

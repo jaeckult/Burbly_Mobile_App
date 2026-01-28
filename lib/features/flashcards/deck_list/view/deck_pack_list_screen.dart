@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/core.dart';
 import '../../../../core/services/adaptive_theme_service.dart';
 import '../../../../core/services/background_service.dart';
+import '../../../../core/animations/animated_wrappers.dart';
 import '../../../auth/services/auth_service.dart';
 import '../../deck_management/screens/create_deck_pack_screen.dart';
 import '../../deck_detail/view/deck_detail_screen.dart';
@@ -15,6 +16,7 @@ import '../../notifications/screens/notification_settings_screen.dart';
 import '../bloc/bloc.dart';
 import '../widgets/deck_pack_card.dart';
 import '../widgets/deck_pack_list_drawer.dart';
+import '../../../../core/widgets/skeleton_loading.dart';
 
 /// Refactored DeckPackListScreen using BLoC for state management.
 /// This screen is now much smaller (approx. 500 lines vs 1700) and more performant.
@@ -264,41 +266,49 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
       ),
       body: BlocBuilder<DeckPackBloc, DeckPackState>(
         builder: (context, state) {
-          if (state is DeckPackLoading) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (state is DeckPackLoaded) {
-            if (state.deckPacks.isEmpty) {
-              return _buildEmptyState();
-            }
-            return RefreshIndicator(
-              onRefresh: () async {
-                context.read<DeckPackBloc>().add(const RefreshDeckPacks());
-              },
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: state.deckPacks.length,
-                itemBuilder: (context, index) {
-                  final deckPack = state.deckPacks[index];
-                  return DeckPackCard(
-                    deckPack: deckPack,
-                    decks: state.decksInPacks[deckPack.id] ?? [],
-                    isExpanded: state.expandedPackIds.contains(deckPack.id),
-                    onToggle: () {
-                      context.read<DeckPackBloc>().add(TogglePackExpansion(deckPack.id));
-                    },
-                    onOptions: () => _showDeckPackOptions(deckPack),
-                    onCreateDeck: () => _createNewDeck(deckPack),
-                    onOpenDeck: _openDeck,
-                    onDeleteDeck: _confirmDeleteDeck,
-                    formatDate: _formatDate,
-                  );
-                },
-              ),
-            );
-          } else if (state is DeckPackError) {
-            return Center(child: Text(state.message));
-          }
-          return const SizedBox.shrink();
+          final isLoading = state is DeckPackLoading;
+          final isLoaded = state is DeckPackLoaded;
+          final isError = state is DeckPackError;
+          
+          // Use smooth transition for loading states
+          return SmoothLoadingTransition(
+            isLoading: isLoading,
+            loadingWidget: const DeckPackListSkeleton(itemCount: 4),
+            child: isError
+                ? Center(child: Text((state as DeckPackError).message))
+                : isLoaded
+                    ? (state as DeckPackLoaded).deckPacks.isEmpty
+                        ? _buildEmptyState()
+                        : RefreshIndicator(
+                            onRefresh: () async {
+                              context.read<DeckPackBloc>().add(const RefreshDeckPacks());
+                            },
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: (state).deckPacks.length,
+                              itemBuilder: (context, index) {
+                                final deckPack = (state).deckPacks[index];
+                                return StaggeredListItem(
+                                  index: index,
+                                  child: DeckPackCard(
+                                    deckPack: deckPack,
+                                    decks: (state).decksInPacks[deckPack.id] ?? [],
+                                    isExpanded: (state).expandedPackIds.contains(deckPack.id),
+                                    onToggle: () {
+                                      context.read<DeckPackBloc>().add(TogglePackExpansion(deckPack.id));
+                                    },
+                                    onOptions: () => _showDeckPackOptions(deckPack),
+                                    onCreateDeck: () => _createNewDeck(deckPack),
+                                    onOpenDeck: _openDeck,
+                                    onDeleteDeck: _confirmDeleteDeck,
+                                    formatDate: _formatDate,
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                    : const SizedBox.shrink(),
+          );
         },
       ),
       floatingActionButton: FloatingActionButton(

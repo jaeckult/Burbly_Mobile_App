@@ -208,8 +208,8 @@ class DeckPackCard extends StatelessWidget {
             
             // Expanded content
             AnimatedSize(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
               child: isExpanded
                   ? Container(
                       padding: const EdgeInsets.fromLTRB(40, 20, 20, 20),

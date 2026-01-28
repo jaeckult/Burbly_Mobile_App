@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../../../../core/core.dart';
+import '../../../../core/animations/animated_wrappers.dart';
+import '../../../../core/widgets/skeleton_loading.dart';
 import '../../deck_management/screens/add_flashcard_screen.dart';
 import '../../study/screens/study_mode_selection_screen.dart';
 import '../../stats/screens/spaced_repetition_stats_screen.dart';
@@ -744,9 +746,11 @@ Widget _buildQuickTimerButton(
           ),
         ],
       ),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildBody(),
+      body: SmoothLoadingTransition(
+          isLoading: loading,
+          loadingWidget: const DeckDetailHeaderSkeleton(),
+          child: _buildBody(),
+        ),
       floatingActionButton: cards.isNotEmpty
           ? FloatingActionButton(
               onPressed: _addFlashcard,

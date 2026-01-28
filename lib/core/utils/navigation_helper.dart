@@ -6,8 +6,8 @@ class MaterialMotionRoute<T> extends PageRouteBuilder<T> {
   MaterialMotionRoute({
     required this.child,
     this.transitionType = MaterialMotionTransitionType.fade,
-    this.duration = const Duration(milliseconds: 300),
-    this.reverseDuration = const Duration(milliseconds: 250),
+    this.duration = const Duration(milliseconds: 250),
+    this.reverseDuration = const Duration(milliseconds: 200),
   }) : super(
           pageBuilder: (context, animation, secondaryAnimation) => child,
           transitionDuration: duration,
@@ -117,7 +117,7 @@ class NavigationHelper {
       MaterialMotionRoute<T>(
         child: screen,
         transitionType: transitionType,
-        duration: duration ?? const Duration(milliseconds: 300),
+        duration: duration ?? const Duration(milliseconds: 250),
       ),
     );
   }
@@ -133,7 +133,7 @@ class NavigationHelper {
       MaterialMotionRoute<T>(
         child: screen,
         transitionType: transitionType,
-        duration: duration ?? const Duration(milliseconds: 300),
+        duration: duration ?? const Duration(milliseconds: 250),
       ),
     );
   }
@@ -149,7 +149,7 @@ class NavigationHelper {
       MaterialMotionRoute<T>(
         child: screen,
         transitionType: transitionType,
-        duration: duration ?? const Duration(milliseconds: 300),
+        duration: duration ?? const Duration(milliseconds: 250),
       ),
       (route) => false,
     );
