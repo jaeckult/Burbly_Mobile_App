@@ -51,12 +51,43 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
 
   // Deck information for mixed study
   List<Deck> _allDecks = [];
+  
+  // Mutable list for study queue
+  late List<Flashcard> _flashcards;
 
   @override
   void initState() {
     super.initState();
+    // Create mutable queue
+    _flashcards = List.from(widget.flashcards);
     _initializeAnimations();
     _loadDeckInformation();
+  }
+  
+  void _deferCard() {
+    if (_flashcards.isEmpty) return;
+    
+    setState(() {
+      final currentCard = _flashcards[_currentIndex];
+      // Add to end of queue
+      _flashcards.add(currentCard);
+      // Skip to next
+      _currentIndex++;
+      
+      // Reset state
+      _showAnswer = false;
+      _isAnswerRevealed = false;
+      _showExtendedDescription = false;
+      _textFadeController.reset();
+      _textFadeController.forward();
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Card moved to end of session'),
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
   void _initializeAnimations() {
@@ -143,7 +174,7 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    if (widget.flashcards.isEmpty) {
+    if (_flashcards.isEmpty) {
       return Scaffold(
         appBar: AppBar(
           title: Text('Study: ${widget.deck.name}'),
@@ -190,7 +221,12 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
       );
     }
 
-    final currentCard = widget.flashcards[_currentIndex];
+    // Safety check
+    if (_currentIndex >= _flashcards.length) {
+       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final currentCard = _flashcards[_currentIndex];
 
     return Scaffold(
       appBar: AppBar(
@@ -201,9 +237,9 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
         actions: [
           Center(
             child: Padding(
-              padding: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.only(right: 8),
               child: Text(
-                '${_currentIndex + 1}/${widget.flashcards.length}',
+                '${_currentIndex + 1}/${_flashcards.length}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -211,13 +247,19 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
               ),
             ),
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Defer Card',
+            onPressed: _deferCard,
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
         children: [
           // Progress Bar
           LinearProgressIndicator(
-            value: (_currentIndex + 1) / widget.flashcards.length,
+            value: (_currentIndex + 1) / _flashcards.length,
             backgroundColor: Colors.grey[300],
             valueColor: AlwaysStoppedAnimation<Color>(
               Color(int.parse('0xFF${widget.deck.coverColor ?? '2196F3'}')),
@@ -249,6 +291,9 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
                 onVerticalDragEnd: (details) {
                   if (details.primaryVelocity! < 0) {
                     _handleSwipeUp();
+                  } else if (details.primaryVelocity! > 0) {
+                    // Swipe down to defer
+                    _deferCard();
                   }
                 },
                 onTapDown: (_) => _tapScaleController.forward(),
@@ -280,7 +325,7 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
                               end: Alignment.bottomRight,
                               colors: [
                                 Color(int.parse('0xFF${widget.deck.coverColor ?? '2196F3'}')),
-                                Color(int.parse('0xFF${widget.deck.coverColor ?? '2196F3'}')).withValues(alpha: 0.7),
+                                Color(int.parse('0xFF${widget.deck.coverColor ?? '2196F3'}')).withOpacity(0.7),
                               ],
                             ),
                           ),
@@ -326,7 +371,7 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                           decoration: BoxDecoration(
-                                            color: _getDeckColor(currentCard.deckId).withValues(alpha: 0.9),
+                                            color: _getDeckColor(currentCard.deckId).withOpacity(0.9),
                                             borderRadius: BorderRadius.circular(12),
                                           ),
                                           child: Text(
@@ -342,7 +387,27 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
                                     ],
                                   ),
                                 ),
-                                const SizedBox(height: 24),
+                                
+                                // Swipe hint
+                                if (!_showAnswer) ...[
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.swipe_down, color: Colors.white54, size: 12),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Swipe down to skip',
+                                        style: TextStyle(
+                                          color: Colors.white54,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                
+                                const SizedBox(height: 16),
 
                                 // Question/Answer Text
                                 Expanded(
@@ -423,7 +488,7 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
                                   Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.1),
+                                      color: Colors.white.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Column(
@@ -440,7 +505,7 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                             decoration: BoxDecoration(
-                                              color: _getDeckColor(currentCard.deckId).withValues(alpha: 0.2),
+                                              color: _getDeckColor(currentCard.deckId).withOpacity(0.2),
                                               borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: Row(
@@ -562,6 +627,32 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
             ),
           ] else ...[
             // Show Answer Button
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _showAnswer = true;
+                      _isAnswerRevealed = true;
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(int.parse('0xFF${widget.deck.coverColor ?? '2196F3'}')),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Show Answer',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ),
            ],
         ],
       ),
@@ -653,7 +744,7 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
     setState(() => _isLoading = true);
 
     try {
-      final currentCard = widget.flashcards[_currentIndex];
+      final currentCard = _flashcards[_currentIndex];
       
       // Update study session stats
       _cardsReviewed++;
@@ -681,12 +772,17 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
         final rating = _qualityToStudyRating(quality);
         final studyService = StudyService();
         final studyResult = studyService.calculateStudyResult(currentCard, rating);
+        
+        // Remove any pending result for this card (if we skipped it before or re-reviewing)
+        _pendingStudyResults.removeWhere((r) => r.cardId == currentCard.id);
+        
         _pendingStudyResults.add(studyResult);
       } else {
         // Apply SM2 spaced repetition algorithm for non-SR decks
         await _dataService.updateFlashcardWithReview(currentCard, quality);
       }
-      // Update overdue/review tags: mark as studied (clears overdue/review-now and sets Reviewed for 10m)
+      
+      // Update overdue/review tags: mark as studied
       try {
         await OverdueService().markCardAsStudied(currentCard, quality);
       } catch (e) {
@@ -697,7 +793,7 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
       await Future.delayed(const Duration(milliseconds: 800));
 
       // Move to next card or finish session
-      if (_currentIndex < widget.flashcards.length - 1) {
+      if (_currentIndex < _flashcards.length - 1) {
         setState(() {
           _currentIndex++;
           _showAnswer = false;
@@ -779,7 +875,6 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
       }
 
       // Trigger immediate tag update in background so it's ready when user exits
-      // We don't await this to keep UI responsible, or we await if it's critical to be done
       await OverdueService().updateDeckTagsImmediately(widget.deck.id);
 
       if (mounted) {
@@ -917,7 +1012,6 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
       setState(() {
         _showExtendedDescription = true;
       });
-      
     }
   }
 
@@ -932,7 +1026,7 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
       case 4:
         return StudyRating.easy;
       case 5:
-        return StudyRating.easy; // Map 5 to easy as well
+        return StudyRating.easy;
       default:
         return StudyRating.good;
     }

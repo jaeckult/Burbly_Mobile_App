@@ -37,10 +37,15 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
   late SimpleStudySession _studySession;
   final Map<String, StudyRating> _cardResults = {};
   final List<StudyResult> _pendingStudyResults = [];
+  
+  // Mutable list of flashcards for the session
+  late List<Flashcard> _flashcards;
 
   @override
   void initState() {
     super.initState();
+    // Create a mutable copy of the flashcards
+    _flashcards = List.from(widget.flashcards);
     _initializeStudyServices();
     _initializeStudySession();
   }
@@ -56,13 +61,35 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       deckId: widget.deck.id,
       startTime: DateTime.now(),
-      totalCards: widget.flashcards.length,
+      totalCards: _flashcards.length,
+    );
+  }
+  
+  void _deferCard() {
+    if (_flashcards.isEmpty) return;
+    
+    setState(() {
+      final currentCard = _flashcards[_currentIndex];
+      // Add a copy of the card to the end of the list
+      _flashcards.add(currentCard);
+      // Move to next card (which effectively "skips" the current one for now)
+      _currentIndex++;
+      // Reset state for new card
+      _showAnswer = false;
+      _showRatingButtons = false;
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Card moved to end of session'),
+        duration: Duration(seconds: 1),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.flashcards.isEmpty) {
+    if (_flashcards.isEmpty) {
       return Scaffold(
         appBar: AppBar(
           title: Text('Study: ${widget.deck.name}'),
@@ -76,7 +103,12 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
       );
     }
 
-    final currentCard = widget.flashcards[_currentIndex];
+    // Ensure index is valid (safety check)
+    if (_currentIndex >= _flashcards.length) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final currentCard = _flashcards[_currentIndex];
     final deckColor = Color(int.parse('0xFF${widget.deck.coverColor ?? '2196F3'}'));
 
     return Scaffold(
@@ -88,9 +120,9 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
         actions: [
           Center(
             child: Padding(
-              padding: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.only(right: 8),
               child: Text(
-                '${_currentIndex + 1}/${widget.flashcards.length}',
+                '${_currentIndex + 1}/${_flashcards.length}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -98,13 +130,19 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
               ),
             ),
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Defer Card',
+            onPressed: _deferCard,
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
         children: [
           // Progress Bar
           LinearProgressIndicator(
-            value: (_currentIndex + 1) / widget.flashcards.length,
+            value: (_currentIndex + 1) / _flashcards.length,
             backgroundColor: Colors.grey[300],
             valueColor: AlwaysStoppedAnimation<Color>(deckColor),
           ),
@@ -142,101 +180,126 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Card(
-                elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
+              child: GestureDetector(
+                onVerticalDragEnd: (details) {
+                  // Swipe down (positive velocity) to defer
+                  if (details.primaryVelocity != null && details.primaryVelocity! > 0) {
+                    _deferCard();
+                  }
+                },
+                child: Card(
+                  elevation: 8,
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        deckColor,
-                        deckColor.withOpacity(0.7),
-                      ],
-                    ),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Question/Answer Label
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _showAnswer ? 'ANSWER' : 'QUESTION',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Question/Answer Text
-                        Text(
-                          _showAnswer ? currentCard.answer : currentCard.question,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                            height: 1.4,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 32),
-
-                        // Study progress info
-                        if (_showAnswer) ...[
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          deckColor,
+                          deckColor.withOpacity(0.7),
+                        ],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Question/Answer Label
                           Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            child: Column(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  'Interval: ${currentCard.interval} days',
+                                  _showAnswer ? 'ANSWER' : 'QUESTION',
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Ease: ${currentCard.easeFactor.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
+                                if (!_showAnswer) ...[
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.swipe_down, color: Colors.white54, size: 12),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Swipe down to skip',
+                                    style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 10,
+                                    ),
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                           ),
-                        ] else ...[
+                          const SizedBox(height: 24),
+
+                          // Question/Answer Text
                           Text(
-                            'Tap to reveal answer',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 14,
-                              fontStyle: FontStyle.italic,
+                            _showAnswer ? currentCard.answer : currentCard.question,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w600,
+                              height: 1.4,
                             ),
+                            textAlign: TextAlign.center,
                           ),
+                          const SizedBox(height: 32),
+
+                          // Study progress info
+                          if (_showAnswer) ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    'Interval: ${currentCard.interval} days',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Ease: ${currentCard.easeFactor.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ] else ...[
+                            Text(
+                              'Tap to reveal answer',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.8),
+                                fontSize: 14,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -372,12 +435,15 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final currentCard = widget.flashcards[_currentIndex];
+      final currentCard = _flashcards[_currentIndex];
       
       // Calculate the study result without applying changes
       final studyResult = widget.useFSRS 
           ? _fsrsStudyService.calculateStudyResult(currentCard, rating)
           : _studyService.calculateStudyResult(currentCard, rating);
+      
+      // Remove any pending result for this card (if we skipped it before or re-reviewing)
+      _pendingStudyResults.removeWhere((r) => r.cardId == currentCard.id);
       
       // Store the pending result
       _pendingStudyResults.add(studyResult);
@@ -402,7 +468,7 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
       _showRatingFeedback(studyResult);
       
       // Move to next card or finish
-      if (_currentIndex < widget.flashcards.length - 1) {
+      if (_currentIndex < _flashcards.length - 1) {
         setState(() {
           _currentIndex++;
           _showAnswer = false;
