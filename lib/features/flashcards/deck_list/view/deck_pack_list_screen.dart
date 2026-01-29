@@ -19,6 +19,7 @@ import '../../study/screens/anki_study_screen.dart';
 import '../../../schedules/screens/my_schedules_screen.dart';
 import '../bloc/bloc.dart';
 import '../widgets/deck_pack_card.dart';
+import '../widgets/deck_pack_notification_card.dart';
 import '../widgets/deck_pack_list_drawer.dart';
 import '../widgets/quick_actions_sheet.dart';
 import '../../../../core/widgets/skeleton_loading.dart';
@@ -250,72 +251,54 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
 
   // Quick action handlers
   void _onMixedStudy() async {
-    // Directly start mixed study session
     try {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
-      // Load all cards that need review
-      final notificationService = NotificationService();
-      final overdueCards = await notificationService.getOverdueCards();
-      final cardsDueToday = await notificationService.getCardsDueToday();
+      // Get all flashcards from all decks
+      final allFlashcards = <Flashcard>[];
       
-      // Combine and remove duplicates
-      final uniqueCards = <String, Flashcard>{};
-      for (final card in [...overdueCards, ...cardsDueToday]) {
-        uniqueCards[card.id] = card;
+      // Get all decks from all deck packs
+      final state = context.read<DeckPackBloc>().state;
+      if (state is DeckPackLoaded) {
+        for (final deckPack in state.deckPacks) {
+          final decks = state.decksInPacks[deckPack.id] ?? [];
+          for (final deck in decks) {
+            final deckFlashcards = await locator.dataService.getFlashcardsForDeck(deck.id);
+            allFlashcards.addAll(deckFlashcards);
+          }
+        }
       }
       
-      final cardsToStudy = uniqueCards.values.toList();
-      
-      // Close loading dialog
-      if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+      if (allFlashcards.isEmpty) {
+        if (mounted) {
+          SnackbarUtils.showWarningSnackbar(
+            context,
+            'No flashcards found in any deck!',
+          );
+        }
+        return;
       }
-      
-      // if (cardsToStudy.isEmpty) {
-      //   if (mounted) {
-      //     SnackbarUtils.showInfoSnackbar(
-      //       context,
-      //       'All caught up! No cards need review at the moment.',
-      //     );
-      //   }
-      //   return;
-      // }
 
-      // Create a virtual "Mixed Study" deck for the study session
+      // Create a virtual deck for mixed study
       final mixedDeck = Deck(
-        id: 'mixed_study_session',
-        name: 'Mixed Study',
-        description: 'Cards from all decks that need review',
+        id: 'mixed_study_all_decks',
+        name: 'Mixed Study - All Decks',
+        description: 'All cards from all decks',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        coverColor: '26A69A', // Warm teal color for mixed study
-        spacedRepetitionEnabled: false, // Don't affect schedules for custom study
+        coverColor: '9C27B0', // Purple for mixed study
+        spacedRepetitionEnabled: false, // Don't affect schedules
         showStudyStats: true,
       );
 
-      // Navigate directly to study screen
+      // Navigate to mixed study screen
       if (mounted) {
         context.pushSlide(
-          AnkiStudyScreen(
-            deck: mixedDeck,
-            flashcards: cardsToStudy,
+          MixedStudyScreen(
+            customDeck: mixedDeck,
+            customFlashcards: allFlashcards,
           ),
         );
       }
     } catch (e) {
-      // Close loading dialog if it's still open
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.of(context, rootNavigator: true).pop();
-      }
-      
       if (mounted) {
         SnackbarUtils.showErrorSnackbar(
           context,
@@ -399,21 +382,19 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
                                         itemCount: (state).deckPacks.length,
                                         itemBuilder: (context, index) {
                                           final deckPack = (state).deckPacks[index];
-                                          return StaggeredListItem(
-                                            index: index,
-                                            child: DeckPackCard(
-                                              deckPack: deckPack,
-                                              decks: (state).decksInPacks[deckPack.id] ?? [],
-                                              isExpanded: (state).expandedPackIds.contains(deckPack.id),
-                                              onToggle: () {
-                                                context.read<DeckPackBloc>().add(TogglePackExpansion(deckPack.id));
-                                              },
-                                              onOptions: () => _showDeckPackOptions(deckPack),
-                                              onCreateDeck: () => _createNewDeck(deckPack),
-                                              onOpenDeck: _openDeck,
-                                              onDeleteDeck: _confirmDeleteDeck,
-                                              formatDate: _formatDate,
-                                            ),
+                                          return DeckPackNotificationCard(
+                                            deckPack: deckPack,
+                                            decks: (state).decksInPacks[deckPack.id] ?? [],
+                                            isExpanded: (state).expandedPackIds.contains(deckPack.id),
+                                            onToggle: () {
+                                              context.read<DeckPackBloc>().add(TogglePackExpansion(deckPack.id));
+                                            },
+                                            onOptions: () => _showDeckPackOptions(deckPack),
+                                            onCreateDeck: () => _createNewDeck(deckPack),
+                                            onOpenDeck: _openDeck,
+                                            onDeleteDeck: _confirmDeleteDeck,
+                                            formatDate: _formatDate,
+                                            listIndex: index,
                                           );
                                         },
                                       ),

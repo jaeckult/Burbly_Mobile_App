@@ -46,7 +46,7 @@ class QuickActionsSheet extends StatefulWidget {
         title: 'Mixed Study',
         subtitle: 'Study from all your decks',
         icon: Icons.shuffle,
-        color: const Color(0xFF26A69A), // Warm teal - cozy and inviting
+        color: Colors.purple,
         onTap: onMixedStudy,
       ),
       QuickAction(

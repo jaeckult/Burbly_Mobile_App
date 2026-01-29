@@ -52,7 +52,7 @@ class MyApp extends StatelessWidget {
     return AdaptiveTheme(
       light: AdaptiveThemeService.lightTheme,
       dark: AdaptiveThemeService.darkTheme,
-      initial: AdaptiveThemeMode.dark,
+      initial: AdaptiveThemeMode.light,
       builder: (theme, darkTheme) => MultiBlocProvider(
         providers: [
           BlocProvider<AuthBloc>(
