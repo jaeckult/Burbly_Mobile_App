@@ -3,6 +3,8 @@ import '../../../../core/core.dart';
 import '../../../../core/services/background_service.dart';
 import '../../../../core/services/pet_service.dart';
 import '../../../../core/services/deck_scheduling_service.dart';
+import '../../../../core/widgets/streak_celebration_dialog.dart';
+import '../../deck_list/widgets/streak_widget.dart';
 
 class ModernStudyScreen extends StatefulWidget {
   final Deck deck;
@@ -480,8 +482,19 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
         }
       }
       
-      // Update study streak
-      await BackgroundService().updateStudyStreak();
+      // Update study streak and show celebration if first study of day
+      final streakInfo = await BackgroundService().updateStudyStreak();
+      if (mounted && streakInfo['wasFirstStudyToday'] == true) {
+        // Show celebration dialog
+        await StreakCelebrationDialog.show(
+          context,
+          newStreak: streakInfo['newStreak'] ?? 0,
+          streakIncreased: streakInfo['streakIncreased'] ?? false,
+        );
+        
+        // Refresh the streak widget in the app bar
+        StreakWidget.refresh();
+      }
       
       // Update pet with study progress
       final petService = PetService();

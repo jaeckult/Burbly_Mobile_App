@@ -4,8 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/core.dart';
 import '../../../../core/services/adaptive_theme_service.dart';
-import '../../../../core/services/adaptive_theme_service.dart';
 import '../../../../core/services/background_service.dart';
+import '../../../../core/widgets/sync_dialog.dart';
 import '.././../deck_management/screens/create_deck_screen.dart';
 import '../../deck_detail/view/deck_detail_screen.dart';
 // import 'search_screen.dart';
@@ -120,35 +120,25 @@ class _FlashcardHomeScreenState extends State<FlashcardHomeScreen> {
 
   Future<void> _backupToCloud() async {
     try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Dialog(
-          insetPadding: EdgeInsets.all(40),
-          child: Padding(
-            padding: EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Backing up your data...'),
-              ],
-            ),
-          ),
-        ),
+      SyncDialog.show(
+        context,
+        title: 'Backing up your data',
+        message: 'Please wait while we securely sync your flashcards to the cloud...',
       );
+      
       await _dataService.backupToFirestore();
+      
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        SnackbarUtils.showSuccessSnackbar(
-                    context,
-                    'Backup completed successfully!',
+        SyncDialog.dismiss(context);
+        SyncSuccessDialog.show(
+          context,
+          title: 'Backup Complete! ✓',
+          message: 'Your flashcards have been successfully backed up to the cloud.',
         );
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        SyncDialog.dismiss(context);
         SnackbarUtils.showErrorSnackbar(
           context,
           'Backup failed: ${e.toString()}',

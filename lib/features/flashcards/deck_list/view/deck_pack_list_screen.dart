@@ -7,6 +7,7 @@ import '../../../../core/core.dart';
 import '../../../../core/services/adaptive_theme_service.dart';
 import '../../../../core/services/background_service.dart';
 import '../../../../core/animations/animated_wrappers.dart';
+import '../../../../core/widgets/sync_dialog.dart';
 import '../../../auth/services/auth_service.dart';
 import '../../deck_management/screens/create_deck_pack_screen.dart';
 import '../../deck_detail/view/deck_detail_screen.dart';
@@ -22,6 +23,8 @@ import '../widgets/deck_pack_card.dart';
 import '../widgets/deck_pack_notification_card.dart';
 import '../widgets/deck_pack_list_drawer.dart';
 import '../widgets/quick_actions_sheet.dart';
+import '../widgets/streak_widget.dart';
+import '../services/streak_reminder_service.dart';
 import '../../../../core/widgets/skeleton_loading.dart';
 
 /// Refactored DeckPackListScreen using BLoC for state management.
@@ -62,8 +65,25 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<DeckPackBloc>().add(const LoadDeckPacks());
+        _checkAndShowStreakReminder();
       }
     });
+  }
+
+  Future<void> _checkAndShowStreakReminder() async {
+    // Wait a bit for the screen to settle
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (!mounted) return;
+    
+    final shouldShow = await StreakReminderService.shouldShowStreakReminder();
+    if (shouldShow && mounted) {
+      final backgroundService = BackgroundService();
+      final currentStreak = await backgroundService.getCurrentStreak();
+      if (currentStreak > 0 && mounted) {
+        StreakReminderService.showStreakReminderDialog(context, currentStreak);
+      }
+    }
   }
 
   Future<void> _checkGuestMode() async {
@@ -175,54 +195,38 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
 
   Future<void> _backupToCloud() async {
     try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => _buildLoadingDialog(),
+      // Show sync dialog
+      SyncDialog.show(
+        context,
+        title: 'Backing up your data',
+        message: 'Please wait while we securely sync your flashcards to the cloud...',
       );
 
       await locator.dataService.backupToFirestore();
 
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Backup completed successfully!'),
-            backgroundColor: Colors.green,
-          ),
+        // Dismiss sync dialog
+        SyncDialog.dismiss(context);
+        
+        // Show success dialog
+        SyncSuccessDialog.show(
+          context,
+          title: 'Backup Complete! ✓',
+          message: 'Your flashcards have been successfully backed up to the cloud.',
         );
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Backup failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
+        SyncDialog.dismiss(context);
+        SnackbarUtils.showErrorSnackbar(
+          context,
+          'Backup failed: ${e.toString()}',
         );
       }
     }
   }
 
-  Widget _buildLoadingDialog() {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 24),
-            const Text('Backing up your data', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Please wait a moment...', textAlign: TextAlign.center),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Future<void> _signOut() async {
     try {
@@ -322,16 +326,18 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Burbly'),
+        title: const Text('Deck Packs'),
         actions: [
+          StreakWidget(),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => context.pushSlide(const SearchScreen()),
           ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _createNewDeckPack,
-          ),
+          // IconButton(
+          //   icon: const Icon(Icons.add),
+          //   onPressed: _createNewDeckPack,
+          // ),
         ],
       ),
       drawer: DeckPackListDrawer(

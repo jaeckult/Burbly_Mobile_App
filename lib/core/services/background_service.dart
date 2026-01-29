@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'notification_service.dart';
 import 'data_service.dart';
@@ -12,9 +13,16 @@ class BackgroundService {
   Timer? _timer;
   final NotificationService _notificationService = NotificationService();
   final DataService _dataService = DataService();
+  
+  // ValueNotifier for reactive streak updates
+  final ValueNotifier<int> streakNotifier = ValueNotifier<int>(0);
 
   // Start background service
   Future<void> start() async {
+    // Verify data integrity
+    final streak = await getCurrentStreak();
+    streakNotifier.value = streak;
+
     // Check every 30 minutes for better responsiveness
     _timer = Timer.periodic(const Duration(minutes: 30), (timer) async {
       _checkNotifications();
@@ -169,44 +177,77 @@ class BackgroundService {
   }
 
   // Update study streak when user studies
-  Future<void> updateStudyStreak() async {
+  // Returns a map with streak update info: {wasFirstStudyToday, newStreak, streakIncreased}
+  Future<Map<String, dynamic>> updateStudyStreak() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final today = DateTime.now();
-      final todayString = today.toIso8601String();
+      final todayString = '${today.year}-${today.month}-${today.day}';
       final lastStudyDate = prefs.getString('last_study_date');
       
+      bool wasFirstStudyToday = false;
+      bool streakIncreased = false;
+      int newStreak = 0;
+      
       if (lastStudyDate != null) {
-        final lastStudy = DateTime.parse(lastStudyDate);
-        final daysSinceLastStudy = today.difference(lastStudy).inDays;
-        
-        if (daysSinceLastStudy == 0) {
-          // Same day - don't increment streak, just keep current value
-          // This prevents the streak from increasing multiple times per day
-          print('Same day study - maintaining current streak');
-        } else if (daysSinceLastStudy == 1) {
-          // Consecutive day - increment streak
-          final currentStreak = prefs.getInt('current_streak') ?? 0;
-          final newStreak = currentStreak + 1;
-          await prefs.setInt('current_streak', newStreak);
-          print('Consecutive day study - streak increased from $currentStreak to $newStreak');
+        // Check if this is first study of the day
+        if (lastStudyDate != todayString) {
+          wasFirstStudyToday = true;
+          
+          final lastStudy = DateTime.parse(prefs.getString('last_study_date_full') ?? today.toIso8601String());
+          final daysSinceLastStudy = today.difference(lastStudy).inDays;
+          
+          if (daysSinceLastStudy == 1) {
+            // Consecutive day - increment streak
+            final currentStreak = prefs.getInt('current_streak') ?? 0;
+            newStreak = currentStreak + 1;
+            await prefs.setInt('current_streak', newStreak);
+            streakIncreased = true;
+            print('Consecutive day study - streak increased from $currentStreak to $newStreak');
+          } else if (daysSinceLastStudy > 1) {
+            // Break in streak - reset to 1
+            newStreak = 1;
+            await prefs.setInt('current_streak', 1);
+            print('Break in streak - reset to 1');
+          } else {
+            // Same day (shouldn't happen with the check above, but just in case)
+            newStreak = prefs.getInt('current_streak') ?? 1;
+          }
         } else {
-          // Break in streak - reset to 1
-          await prefs.setInt('current_streak', 1);
-          print('Break in streak - reset to 1');
+          // Same day - don't increment streak
+          newStreak = prefs.getInt('current_streak') ?? 1;
+          print('Same day study - maintaining current streak: $newStreak');
         }
       } else {
-        // First study session
+        // First study session ever
+        wasFirstStudyToday = true;
+        newStreak = 1;
         await prefs.setInt('current_streak', 1);
         print('First study session - streak set to 1');
       }
       
+      // Update last study date (both simple and full)
       await prefs.setString('last_study_date', todayString);
+      await prefs.setString('last_study_date_full', today.toIso8601String());
       
       // Trigger notification check after updating streak
       _checkNotifications();
+      
+      // Update notifier so UI updates immediately
+      streakNotifier.value = newStreak;
+      
+      return {
+        'wasFirstStudyToday': wasFirstStudyToday,
+        'newStreak': newStreak,
+        'streakIncreased': streakIncreased,
+      };
     } catch (e) {
       print('Error updating study streak: $e');
+      return {
+        'wasFirstStudyToday': false,
+        'newStreak': 0,
+        'streakIncreased': false,
+      };
     }
   }
 
