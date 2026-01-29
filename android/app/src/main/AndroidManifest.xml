@@ -1,31 +1,34 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Core Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     
-    <!-- Removed FOREGROUND_SERVICE, SCHEDULE_EXACT_ALARM, and USE_EXACT_ALARM 
-         as they are not strictly required and risk Play Store rejection. 
-         Notifications now use inexact timing. -->
+    <!-- Exact Alarm Permission (Android 12+)
+         This is optional - app will fallback to inexact alarms if not granted -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     
     <application
         android:label="Burbly"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         
-        <!-- Notification receiver for boot completed -->
+        <!-- Custom Alarm Receiver for scheduled notifications -->
         <receiver
-            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:name=".AlarmReceiver"
+            android:enabled="true"
             android:exported="false"/>
+        
+        <!-- Boot Receiver to reschedule alarms after device reboot -->
         <receiver
-            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:name=".BootReceiver"
+            android:enabled="true"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
-                <action android:name="android.intent.action.PACKAGE_REPLACED"/>
-                <data android:scheme="package"/>
             </intent-filter>
         </receiver>
         

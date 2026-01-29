@@ -382,6 +382,9 @@ class _EnhancedStudyScreenState extends State<EnhancedStudyScreen> with TickerPr
       print('Error updating pet: $e');
     }
     
+    // Trigger immediate tag update in background so it's ready when user exits
+    await OverdueService().updateDeckTagsImmediately(widget.deck.id);
+
     if (mounted) {
       showDialog(
         context: context,
@@ -432,9 +435,11 @@ class _EnhancedStudyScreenState extends State<EnhancedStudyScreen> with TickerPr
               icon: const Icon(Icons.home),
               label: const Text('Back to Deck'),
               onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Return to deck screen
-                Navigator.pop(context); // Return to deck screen
+                if (mounted) {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context); // Return to deck screen
+                  Navigator.pop(context); // Return to deck screen
+                }
               },
             ),
             ElevatedButton.icon(

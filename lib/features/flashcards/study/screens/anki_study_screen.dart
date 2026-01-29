@@ -778,6 +778,10 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
         print('Error saving Anki study session: $e');
       }
 
+      // Trigger immediate tag update in background so it's ready when user exits
+      // We don't await this to keep UI responsible, or we await if it's critical to be done
+      await OverdueService().updateDeckTagsImmediately(widget.deck.id);
+
       if (mounted) {
         // Show completion dialog with statistics
         await _showCompletionDialog(sessionDuration, accuracy);
@@ -845,9 +849,11 @@ class _AnkiStudyScreenState extends State<AnkiStudyScreen> with TickerProviderSt
             icon: const Icon(Icons.home),
             label: const Text('Back to Deck'),
             onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Return to deck screen
-              Navigator.pop(context); // Return to deck screen
+              if (mounted) {
+                Navigator.pop(context); // Close dialog
+                Navigator.pop(context); // Return to study mode selection
+                Navigator.pop(context); // Return to deck detail screen
+              }
             },
           ),
           ElevatedButton.icon(

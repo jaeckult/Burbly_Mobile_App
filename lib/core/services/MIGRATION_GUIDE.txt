@@ -1,0 +1,211 @@
+"""
+NOTIFICATION SYSTEM MIGRATION GUIDE
+====================================
+
+## Overview
+We're migrating from flutter_local_notifications to a custom Native Android AlarmManager system.
+
+## What Changed
+
+### OLD SYSTEM (flutter_local_notifications)
+- ❌ Unreliable on some devices
+- ❌ Notifications could be delayed or lost
+- ❌ Complex setup with timezone issues
+- ❌ Limited control over exact timing
+- ❌ Battery intensive
+
+### NEW SYSTEM (Native Android AlarmManager)
+- ✅ Direct Android AlarmManager control
+- ✅ Survives app being killed
+- ✅ Survives device reboot (with reschedule)
+- ✅ Battery optimized
+- ✅ Exact + inexact alarm support
+- ✅ Play Store compliant
+
+## Migration Strategy
+
+### Phase 1: Parallel Running ✅ COMPLETE
+- [x] New system initialized in main.dart
+- [x] New system runs alongside old system
+- [x] Test screen available for verification
+- [x] Migration helper created
+
+### Phase 2: Gradual Migration (CURRENT)
+Use NotificationMigrationHelper for new notification scheduling:
+
+```dart
+// OLD WAY (Don't use for new code)
+await NotificationService().scheduleDailyReminder(time: time, daysOfWeek: days);
+
+// NEW WAY (Use this)
+await NotificationMigrationHelper.scheduleDailyStudyReminder(
+  scheduledTime: scheduledTime,
+  message: 'Time to study!',
+);
+```
+
+### Phase 3: Full Migration (TODO)
+- [ ] Migrate NotificationSettingsScreen to use new system
+- [ ] Migrate deck review notifications
+- [ ] Migrate overdue card notifications
+- [ ] Remove flutter_local_notifications dependency
+
+## Code Locations
+
+### Files to KEEP (Old system for data)
+- `lib/core/services/notification_service.dart` - Keep for:
+  - `getOverdueCards()` - Data queries
+  - `getCardsDueToday()` - Data queries
+  - Notification history/logging
+  - Settings UI (display only)
+
+### Files to USE (New system for scheduling)
+- `lib/core/services/native_notification_service.dart` - Main API
+- `lib/core/utils/notification_migration_helper.dart` - Migration wrapper
+- `android/app/src/main/kotlin/com/burbly/app/MainActivity.kt` - Native bridge
+- `android/app/src/main/kotlin/com/burbly/app/AlarmReceiver.kt` - Alarm handler
+- `android/app/src/main/kotlin/com/burbly/app/BootReceiver.kt` - Reboot handler
+- `android/app/src/main/kotlin/com/burbly/app/NotificationHelper.kt` - Notification builder
+
+## How to Migrate Existing Code
+
+### Example 1: Daily Reminders
+
+OLD CODE:
+```dart
+final notificationService = NotificationService();
+await notificationService.scheduleDailyReminder(
+  time: TimeOfDay(hour: 9, minute: 0),
+  daysOfWeek: [1, 2, 3, 4, 5, 6, 7],
+);
+```
+
+NEW CODE:
+```dart
+final now = DateTime.now();
+final scheduledTime = DateTime(now.year, now.month, now.day, 9, 0);
+final finalTime = scheduledTime.isBefore(now) 
+    ? scheduledTime.add(Duration(days: 1))
+    : scheduledTime;
+
+await NotificationMigrationHelper.scheduleDailyStudyReminder(
+  scheduledTime: finalTime,
+  message: 'Time for your daily study session! 📚',
+);
+```
+
+### Example 2: Flashcard Review Notifications
+
+OLD CODE:
+```dart
+await NotificationService().scheduleCardReviewNotification(
+  flashcard,
+  deck,
+  nextReviewTime,
+);
+```
+
+NEW CODE:
+```dart
+await NotificationMigrationHelper.scheduleFlashcardReview(
+  deckId: deck.id,
+  deckName: deck.name,
+  cardCount: cardCount,
+  scheduledTime: nextReviewTime,
+);
+```
+
+### Example 3: Cancel Notifications
+
+OLD CODE:
+```dart
+await NotificationService().cancelDeckReviewNotification(deckId);
+```
+
+NEW CODE:
+```dart
+await NotificationMigrationHelper.cancelDeckNotification(deckId);
+```
+
+## Files That Need Migration
+
+### Priority 1 (High Impact)
+1. **lib/features/flashcards/notifications/screens/notification_settings_screen.dart**
+   - Update to schedule with new system
+   - Keep UI same, change backend calls
+
+2. **lib/core/services/background_service.dart**
+   - Update any notification scheduling
+   - Use NotificationMigrationHelper
+
+3. **lib/core/services/overdue_service.dart**
+   - Update notification scheduling
+   - Keep data queries with old service
+
+### Priority 2 (Medium Impact)
+4. **lib/features/flashcards/deck_detail/view/deck_detail_screen.dart**
+   - Line 1758: updateDeckReviewNotification
+   - Migrate to new system
+
+5. **lib/features/flashcards/home/screens/flashcard_home_screen.dart**
+   - Check for any notification scheduling
+
+### Priority 3 (Low Impact - Display Only)
+6. **lib/features/flashcards/home/bloc/home_bloc.dart**
+   - Keep as-is (notification history display)
+
+7. **lib/features/flashcards/notifications/widgets/**
+   - Keep as-is (notification log display)
+
+## Testing Checklist
+
+After each migration:
+- [ ] Test on physical device
+- [ ] Schedule notification
+- [ ] Kill app
+- [ ] Verify notification still shows
+- [ ] Reboot device
+- [ ] Open app
+- [ ] Verify rescheduling works
+
+## Rollback Plan
+
+If issues arise:
+1. The old system still works
+2. Comment out NativeNotificationService.initialize() in main.dart
+3. Revert to old NotificationService calls
+4. Report detailed issue
+
+## Benefits After Full Migration
+
+1. **Reliability**: Notifications work even if app is killed
+2. **Battery**: No background services needed
+3. **Play Store**: Fully compliant, no risky permissions
+4. **OEM Compatible**: Works on Xiaomi, Tecno, Samsung, etc.
+5. **Maintainability**: Simpler codebase, direct control
+6. **Performance**: Faster, lighter, no plugin overhead
+
+## Current Status
+
+✅ Infrastructure: Complete
+✅ Test Screen: Available in drawer
+✅ Migration Helper: Created
+⏳ Code Migration: In Progress
+⏳ Testing: Ongoing
+❌ Old System Removal: Pending
+
+## Next Steps
+
+1. Use test screen to verify new system works on your device
+2. Gradually migrate notification scheduling code
+3. Keep old system for data queries until fully confident
+4. Remove flutter_local_notifications when ready
+
+## Support
+
+Questions or issues?
+1. Check test screen in drawer
+2. Review logs in test screen
+3. Check Android logcat for native errors
+4. Verify permissions in device settings
+"""

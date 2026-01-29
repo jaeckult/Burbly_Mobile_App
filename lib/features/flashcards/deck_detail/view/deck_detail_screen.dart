@@ -11,6 +11,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../deck_detail/bloc/deck_detail_bloc.dart';
 import '../../deck_detail/bloc/deck_detail_event.dart';
 import '../../deck_detail/bloc/deck_detail_state.dart';
+import '../../../../core/utils/notification_migration_helper.dart';
 
 class DeckDetailScreen extends StatefulWidget {
   final Deck deck;
@@ -38,12 +39,12 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
     // Bloc will handle loading, periodic refresh, and overdue monitoring
   }
 
-  Future<void> _loadFlashcards() async {
+  Future<void> _loadFlashcards(BuildContext context) async {
     if (!mounted) return;
     context.read<DeckDetailBloc>().add(const LoadFlashcards());
   }
 
-  Future<void> _refreshDeck() async {
+  Future<void> _refreshDeck(BuildContext context) async {
     if (!mounted) return;
     context.read<DeckDetailBloc>().add(const RefreshRequested());
   }
@@ -89,13 +90,13 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
 
   // Card-level review status tags removed - only deck-level tags are used
 
-  void _addFlashcard() {
-    context.pushScale(
-      AddFlashcardScreen(deckId: widget.deck.id),
-    ).then((_) => _loadFlashcards());
+  void _addFlashcard(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (c) => AddFlashcardScreen(deckId: widget.deck.id)),
+    ).then((_) => _loadFlashcards(context));
   }
 
-  void _startStudy() {
+  void _startStudy(BuildContext context) {
     if (_flashcards.isEmpty) {
       SnackbarUtils.showWarningSnackbar(
         context,
@@ -104,14 +105,16 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
       return;
     }
 
-    context.pushSharedAxis(
-      StudyModeSelectionScreen(
-        deck: _currentDeck,
-        flashcards: _flashcards,
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (c) => StudyModeSelectionScreen(
+          deck: _currentDeck,
+          flashcards: _flashcards,
+        ),
       ),
     ).then((_) {
-      _loadFlashcards();
-      _refreshDeck();
+      _loadFlashcards(context);
+      _refreshDeck(context);
     });
   }
 
@@ -577,10 +580,10 @@ Widget _buildQuickTimerButton(
     );
   }
 
-  void _showFlashcardOptions(Flashcard flashcard) {
+  void _showFlashcardOptions(BuildContext context, Flashcard flashcard) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
+      builder: (modalContext) => Container(
         padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -589,16 +592,16 @@ Widget _buildQuickTimerButton(
               leading: const Icon(Icons.edit),
               title: const Text('Edit Flashcard'),
               onTap: () {
-                Navigator.pop(context);
-                _editFlashcard(flashcard);
+                Navigator.pop(modalContext);
+                _editFlashcard(context, flashcard);
               },
             ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text('Delete Flashcard', style: TextStyle(color: Colors.red)),
               onTap: () {
-                Navigator.pop(context);
-                _deleteFlashcard(flashcard);
+                Navigator.pop(modalContext);
+                _deleteFlashcard(context, flashcard);
               },
             ),
           ],
@@ -607,13 +610,13 @@ Widget _buildQuickTimerButton(
     );
   }
 
-  Future<void> _editFlashcard(Flashcard flashcard) async {
+  Future<void> _editFlashcard(BuildContext context, Flashcard flashcard) async {
     final questionController = TextEditingController(text: flashcard.question);
     final answerController = TextEditingController(text: flashcard.answer);
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Edit Flashcard'),
         content: SingleChildScrollView(
           child: Column(
@@ -641,7 +644,7 @@ Widget _buildQuickTimerButton(
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
@@ -653,9 +656,9 @@ Widget _buildQuickTimerButton(
                   updatedAt: DateTime.now(),
                 );
                 await _dataService.updateFlashcard(updated);
-                await _loadFlashcards();
+                await _loadFlashcards(context);
                 // ignore: use_build_context_synchronously
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 if (mounted) {
                   SnackbarUtils.showSuccessSnackbar(context, 'Flashcard updated');
                 }
@@ -672,19 +675,19 @@ Widget _buildQuickTimerButton(
     );
   }
 
-  Future<void> _deleteFlashcard(Flashcard flashcard) async {
+  Future<void> _deleteFlashcard(BuildContext context, Flashcard flashcard) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Flashcard'),
         content: const Text('Are you sure you want to delete this flashcard?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
           ),
@@ -694,7 +697,7 @@ Widget _buildQuickTimerButton(
 
     if (confirmed == true) {
       await _dataService.deleteFlashcard(flashcard.id);
-      await _loadFlashcards();
+      await _loadFlashcards(context);
       
       if (mounted) {
         SnackbarUtils.showWarningSnackbar(
@@ -741,7 +744,7 @@ Widget _buildQuickTimerButton(
           ),
           IconButton(
             icon: const Icon(Icons.play_arrow),
-            onPressed: _startStudy,
+            onPressed: () => _startStudy(context),
             tooltip: 'Start Studying',
           ),
         ],
@@ -749,11 +752,11 @@ Widget _buildQuickTimerButton(
       body: SmoothLoadingTransition(
           isLoading: loading,
           loadingWidget: const DeckDetailHeaderSkeleton(),
-          child: _buildBody(),
+          child: _buildBody(context),
         ),
       floatingActionButton: cards.isNotEmpty
           ? FloatingActionButton(
-              onPressed: _addFlashcard,
+              onPressed: () => _addFlashcard(context),
               backgroundColor: Color(int.parse('0xFF${deck.coverColor ?? '2196F3'}')),
               foregroundColor: Colors.white,
               child: const Icon(Icons.add),
@@ -766,7 +769,7 @@ Widget _buildQuickTimerButton(
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 600;
@@ -777,6 +780,10 @@ Widget _buildQuickTimerButton(
         Container(
           margin: EdgeInsets.all(isWide ? 24 : 16),
           padding: EdgeInsets.all(isWide ? 24 : 16),
+          // ... (omitted content logic)
+          // actually I should be careful not to replace the entire body if I don't see it all.
+          // I'll target specific lines.
+
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -1347,7 +1354,7 @@ Widget _buildQuickTimerButton(
       children: [
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: _startStudy,
+            onPressed: () => _startStudy(context),
             icon: const Icon(Icons.school),
             label: const Text('Study'),
             style: ElevatedButton.styleFrom(
@@ -1395,13 +1402,13 @@ Widget _buildQuickTimerButton(
         // Flashcards List
         Expanded(
           child: _flashcards.isEmpty
-              ? _buildEmptyState()
+              ? _buildEmptyState(context)
               : ListView.builder(
                   padding: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
                   itemCount: _flashcards.length,
                   itemBuilder: (context, index) {
                     final flashcard = _flashcards[index];
-                    return _buildFlashcardCard(flashcard);
+                    return _buildFlashcardCard(context, flashcard);
                   },
                 ),
         ),
@@ -1411,7 +1418,7 @@ Widget _buildQuickTimerButton(
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1437,7 +1444,7 @@ Widget _buildQuickTimerButton(
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: _addFlashcard,
+            onPressed: () => _addFlashcard(context),
             icon: const Icon(Icons.add),
             label: const Text('Add Flashcard'),
             style: ElevatedButton.styleFrom(
@@ -1450,7 +1457,7 @@ Widget _buildQuickTimerButton(
     );
   }
 
-  Widget _buildFlashcardCard(Flashcard flashcard) {
+  Widget _buildFlashcardCard(BuildContext context, Flashcard flashcard) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -1458,7 +1465,7 @@ Widget _buildQuickTimerButton(
         borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
-        onTap: () => _showFlashcardOptions(flashcard),
+        onTap: () => _showFlashcardOptions(context, flashcard),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -1479,7 +1486,7 @@ Widget _buildQuickTimerButton(
                     ),
                   ),
                   IconButton(
-                    onPressed: () => _showFlashcardOptions(flashcard),
+                    onPressed: () => _showFlashcardOptions(context, flashcard),
                     icon: const Icon(Icons.more_vert),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -1754,8 +1761,25 @@ Widget _buildQuickTimerButton(
                 scheduledReviewEnabled: true,
               );
               await _dataService.updateDeck(updatedDeck);
-              setState(() => _currentDeck = updatedDeck);
-              await NotificationService().updateDeckReviewNotification(updatedDeck);
+              
+              // Force reload from database to ensure UI matches persistence
+              final reloadedDeck = await _dataService.getDeck(updatedDeck.id);
+              if (reloadedDeck != null) {
+                 setState(() => _currentDeck = reloadedDeck);
+              } else {
+                 setState(() => _currentDeck = updatedDeck);
+              }
+              
+              await NotificationMigrationHelper.scheduleFlashcardReview(
+                deckId: updatedDeck.id,
+                deckName: updatedDeck.name,
+                cardCount: _flashcards.length,
+                scheduledTime: selectedDateTime,
+              );
+              
+              // Update tags immediately after scheduling (clear overdue/review now)
+              await OverdueService().updateDeckTagsImmediately(updatedDeck.id);
+              
               OverdueService().startOverdueMonitoring();
               Navigator.pop(context);
 

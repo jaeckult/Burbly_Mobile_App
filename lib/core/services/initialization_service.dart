@@ -37,12 +37,13 @@ class InitializationService {
         }
       });
 
-      // Initialize notification service (can fail gracefully)
-      await _initializeService('NotificationService', () async {
+      // Initialize notification service (LEGACY - for data queries only)
+      // New system (NativeNotificationService) is initialized in main.dart
+      await _initializeService('NotificationService (Legacy)', () async {
         try {
           await locator.notificationService.initialize();
         } catch (e) {
-          AppLogger.warning('Notification service failed to initialize: $e');
+          AppLogger.warning('Legacy notification service failed to initialize: $e');
           // Continue without notifications
         }
       });

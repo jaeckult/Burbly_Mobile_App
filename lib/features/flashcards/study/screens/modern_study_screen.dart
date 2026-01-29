@@ -460,6 +460,9 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
 
   Future<void> _completeStudySession() async {
     try {
+      // Start tag update immediately to hide latency
+      final tagUpdateFuture = OverdueService().updateDeckTagsImmediately(widget.deck.id);
+
       // Show scheduling consent dialog
       if (mounted && _pendingStudyResults.isNotEmpty) {
         final shouldApplySchedules = await _showSchedulingConsentDialog();
@@ -487,6 +490,9 @@ class _ModernStudyScreenState extends State<ModernStudyScreen> {
       if (currentPet != null) {
         await petService.studyWithPet(currentPet, widget.flashcards.length);
       }
+      
+      // Await tag update if not done
+      await tagUpdateFuture;
       
       if (mounted) {
         Navigator.pop(context);

@@ -411,6 +411,10 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
         });
       } else {
         // Study session completed
+        
+        // Start tag update immediately in background to reduce latency
+        final tagUpdateFuture = OverdueService().updateDeckTagsImmediately(widget.deck.id);
+        
         // Update study streak
         await BackgroundService().updateStudyStreak();
         
@@ -421,6 +425,9 @@ class _StudyScreenState extends State<StudyScreen> with TickerProviderStateMixin
         if (currentPet != null) {
           await petService.studyWithPet(currentPet, _currentIndex + 1);
         }
+        
+        // Ensure tag update is finished (should be done by now)
+        await tagUpdateFuture;
         
         if (mounted) {
           Navigator.pop(context);

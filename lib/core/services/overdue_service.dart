@@ -30,6 +30,36 @@ class OverdueService {
     _overdueCheckTimer?.cancel();
   }
 
+  /// Immediately update tags for a specific deck (no waiting for timer)
+  /// Call this after user actions that should trigger instant tag refresh
+  Future<void> updateDeckTagsImmediately(String deckId) async {
+    try {
+      final deck = await _dataService.getDeck(deckId);
+      if (deck != null && deck.spacedRepetitionEnabled) {
+        await _updateDeckTagState(deck);
+        await _updateDeckOverdueStatus(deck);
+        print('✅ Immediately updated tags for deck: ${deck.name}');
+      }
+    } catch (e) {
+      print('❌ Error immediately updating deck tags: $e');
+    }
+  }
+
+  /// Refresh all deck tags immediately (e.g., on app resume)
+  Future<void> refreshAllDeckTags() async {
+    try {
+      final decks = await _dataService.getDecks();
+      for (final deck in decks) {
+        if (deck.spacedRepetitionEnabled) {
+          await _updateDeckTagState(deck);
+        }
+      }
+      print('✅ Refreshed all deck tags');
+    } catch (e) {
+      print('❌ Error refreshing all deck tags: $e');
+    }
+  }
+
   // Check and update overdue status for all decks and their cards
   Future<void> _checkAndUpdateOverdueCards() async {
     try {
@@ -143,10 +173,10 @@ class OverdueService {
 
       if (updated != deck) {
         await _dataService.updateDeck(updated);
-        print('Updated deck-level tags for ${deck.name}: ReviewNow=${updated.deckIsReviewNow}, Overdue=${updated.deckIsOverdue}, Reviewed=${updated.deckIsReviewed}');
+        print('[${DateTime.now().toIso8601String()}] Updated deck-level tags for ${deck.name}: ReviewNow=${updated.deckIsReviewNow}, Overdue=${updated.deckIsOverdue}, Reviewed=${updated.deckIsReviewed}');
       }
     } catch (e) {
-      print('Error updating deck tag state for deck ${deck.name}: $e');
+      print('[${DateTime.now().toIso8601String()}] Error updating deck tag state for deck ${deck.name}: $e');
     }
   }
 
@@ -205,6 +235,7 @@ class OverdueService {
       
       await _dataService.updateFlashcard(updatedFlashcard);
 
+      
       // Update deck-level tags to Reviewed (for 10 minutes) and clear others
       final deck = await _dataService.getDeck(flashcard.deckId);
       if (deck != null) {
@@ -217,12 +248,12 @@ class OverdueService {
           deckReviewedStartTime: now,
         );
         await _dataService.updateDeck(updatedDeck);
-        print('Deck ${deck.name} marked as Reviewed after studying card');
+        print('[${DateTime.now().toIso8601String()}] Deck ${deck.name} marked as Reviewed after studying card');
       }
       
       // No individual card notifications - only deck-level scheduling
     } catch (e) {
-      print('Error marking card as studied: $e');
+      print('[${DateTime.now().toIso8601String()}] Error marking card as studied: $e');
     }
   }
 

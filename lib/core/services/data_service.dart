@@ -54,7 +54,24 @@ class DataService {
   
   Future<List<Deck>> getDecks() => _deckRepo.getAll();
   Future<Deck?> getDeck(String id) => _deckRepo.getById(id);
-  Future<void> updateDeck(Deck deck) => _deckRepo.update(deck);
+  
+  Future<void> updateDeck(Deck deck) async {
+    final timestamp = DateTime.now().toIso8601String();
+    print('[$timestamp] DataService: SAVE Deck "${deck.name}" (ID: ${deck.id})');
+    print('[$timestamp] DataService:   Schedule: ${deck.scheduledReviewTime}');
+    print('[$timestamp] DataService:   Enabled: ${deck.scheduledReviewEnabled}');
+    
+    await _deckRepo.update(deck);
+    
+    // Verify persistence immediately
+    try {
+      final saved = await _deckRepo.getById(deck.id);
+      print('[$timestamp] DataService: VERIFY Saved Schedule: ${saved?.scheduledReviewTime}');
+    } catch (e) {
+      print('[$timestamp] DataService: VERITIFICATION FAILED: $e');
+    }
+  }
+
   Future<void> deleteDeck(String id) => _deckRepo.delete(id);
 
   // FLASHCARD OPERATIONS
@@ -80,8 +97,35 @@ class DataService {
   Future<List<DeckPack>> getDeckPacks() => _deckPackRepo.getAll();
   Future<void> updateDeckPack(DeckPack pack) => _deckPackRepo.update(pack);
   Future<void> deleteDeckPack(String id) => _deckPackRepo.delete(id);
-  Future<void> addDeckToPack(String deckId, String packId) => _deckPackRepo.addDeckToPack(packId, deckId);
-  Future<void> removeDeckFromPack(String deckId, String packId) => _deckPackRepo.removeDeckFromPack(packId, deckId);
+  Future<void> addDeckToPack(String deckId, String packId) async {
+    // 1. Add deck to pack (updates DeckPack)
+    await _deckPackRepo.addDeckToPack(packId, deckId);
+    
+    // 2. Update deck with packId (updates Deck)
+    final deck = await _deckRepo.getById(deckId);
+    if (deck != null && deck.packId != packId) {
+      final updatedDeck = deck.copyWith(
+        packId: packId,
+        updatedAt: DateTime.now(),
+      );
+      await updateDeck(updatedDeck);
+    }
+  }
+  Future<void> removeDeckFromPack(String deckId, String packId) async {
+    // 1. Remove deck from pack (updates DeckPack)
+    await _deckPackRepo.removeDeckFromPack(packId, deckId);
+    
+    // 2. Update deck to remove packId (updates Deck)
+    final deck = await _deckRepo.getById(deckId);
+    if (deck != null && deck.packId == packId) {
+      final updatedDeck = deck.copyWith(
+        clearPackId: true,
+        updatedAt: DateTime.now(),
+      );
+      // Note: we need to ensure copyWith handles setting null correctly
+      await updateDeck(updatedDeck);
+    }
+  }
   Future<String?> getDeckPackName(String id) => _deckPackRepo.getNameById(id);
 
   // NOTE OPERATIONS

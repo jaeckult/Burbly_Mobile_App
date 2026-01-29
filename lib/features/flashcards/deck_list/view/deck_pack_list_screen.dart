@@ -15,6 +15,7 @@ import '../../notes/screens/notes_screen.dart';
 import '../../search/screens/search_screen.dart';
 import '../../notifications/screens/notification_settings_screen.dart';
 import '../../study/screens/mixed_study_screen.dart';
+import '../../study/screens/anki_study_screen.dart';
 import '../../../schedules/screens/my_schedules_screen.dart';
 import '../bloc/bloc.dart';
 import '../widgets/deck_pack_card.dart';
@@ -248,9 +249,80 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
   }
 
   // Quick action handlers
-  void _onMixedStudy() {
-    // Navigate to mixed study screen
-    context.pushSlide(const MixedStudyScreen());
+  void _onMixedStudy() async {
+    // Directly start mixed study session
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Load all cards that need review
+      final notificationService = NotificationService();
+      final overdueCards = await notificationService.getOverdueCards();
+      final cardsDueToday = await notificationService.getCardsDueToday();
+      
+      // Combine and remove duplicates
+      final uniqueCards = <String, Flashcard>{};
+      for (final card in [...overdueCards, ...cardsDueToday]) {
+        uniqueCards[card.id] = card;
+      }
+      
+      final cardsToStudy = uniqueCards.values.toList();
+      
+      // Close loading dialog
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      
+      // if (cardsToStudy.isEmpty) {
+      //   if (mounted) {
+      //     SnackbarUtils.showInfoSnackbar(
+      //       context,
+      //       'All caught up! No cards need review at the moment.',
+      //     );
+      //   }
+      //   return;
+      // }
+
+      // Create a virtual "Mixed Study" deck for the study session
+      final mixedDeck = Deck(
+        id: 'mixed_study_session',
+        name: 'Mixed Study',
+        description: 'Cards from all decks that need review',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        coverColor: '26A69A', // Warm teal color for mixed study
+        spacedRepetitionEnabled: false, // Don't affect schedules for custom study
+        showStudyStats: true,
+      );
+
+      // Navigate directly to study screen
+      if (mounted) {
+        context.pushSlide(
+          AnkiStudyScreen(
+            deck: mixedDeck,
+            flashcards: cardsToStudy,
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if it's still open
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      
+      if (mounted) {
+        SnackbarUtils.showErrorSnackbar(
+          context,
+          'Error starting mixed study: ${e.toString()}',
+        );
+      }
+    }
   }
 
   void _onCalendar() {

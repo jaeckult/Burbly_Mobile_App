@@ -66,8 +66,10 @@ class QuickActionsSheet extends StatefulWidget {
     ];
   }
 
-
   @override
+  State<QuickActionsSheet> createState() => _QuickActionsSheetState();
+}
+
 class _QuickActionsSheetState extends State<QuickActionsSheet> {
   bool _isExpanded = false;
   double _lastSize = 0.12;

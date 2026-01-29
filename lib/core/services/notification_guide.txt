@@ -1,0 +1,56 @@
+# Robust Offline Notification System - Integration Guide
+
+## Overview
+This is a hybrid Flutter + Native Android notification system for Burbly flashcard app.
+
+## Quick Start
+
+### 1. Initialize in main.dart
+
+```dart
+import 'core/services/native_notification_service.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NativeNotificationService.initialize();
+  runApp(const MyApp());
+}
+```
+
+### 2. Schedule Notifications
+
+```dart
+// Study reminder
+await NativeNotificationService.scheduleStudyReminder(
+  reminderId: 1001,
+  scheduledTime: DateTime.now().add(Duration(hours: 2)),
+  title: 'Study Time!',
+  message: 'Review your flashcards now 📚',
+);
+```
+
+### 3. Handle Reboots
+
+Update `_onNeedsReschedule()` in `native_notification_service.dart` to load and reschedule reminders from your database.
+
+## Files Created
+
+### Kotlin (android/app/src/main/kotlin/com/burbly/app/)
+- `MainActivity.kt` - MethodChannel bridge
+- `AlarmReceiver.kt` - Receives alarms
+- `BootReceiver.kt` - Handles device boot
+- `NotificationHelper.kt` - Creates notifications
+
+### Flutter (lib/)
+- `core/services/native_notification_service.dart` - Main service
+- `features/examples/notification_example.dart` - Usage examples
+
+### Manifest
+- Updated `android/app/src/main/AndroidManifest.xml` with receivers
+
+## Key Features
+- ✅ Works offline
+- ✅ Survives app closure and reboots
+- ✅ Battery optimized
+- ✅ Play Store compliant
+- ✅ Exact and inexact alarm support

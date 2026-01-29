@@ -8,6 +8,8 @@ import '../../notes/screens/notes_screen.dart';
 import '../../notifications/screens/notification_settings_screen.dart';
 import '../../../stats/screens/stats_page.dart';
 import '../../trash/screens/trash_screen.dart' as trash_screen;
+import '../../../testing/notification_test_screen.dart';
+import '../../../testing/scheduling_debug_screen.dart';
 import '../../../../core/widgets/profile_avatar.dart';
 
 /// Extracted drawer widget for DeckPackListScreen
@@ -156,6 +158,44 @@ class DeckPackListDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       AdaptiveThemeService.toggleTheme(context);
+                    },
+                  ),
+
+                  const Divider(height: 1, thickness: 0.5),
+
+                  // Development / Testing Section
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text(
+                      "Development",
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Colors.grey),
+                    ),
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    leading: const Icon(Icons.science_outlined, size: 22, color: Colors.deepPurple),
+                    title: const Text('Notification Tests', style: TextStyle(fontSize: 14)),
+                    subtitle: const Text('Test notification system', style: TextStyle(fontSize: 11)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.pushFade(const NotificationTestScreen());
+                    },
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    leading: const Icon(Icons.bug_report, size: 22, color: Colors.orange),
+                    title: const Text('Scheduling Debug', style: TextStyle(fontSize: 14)),
+                    subtitle: const Text('Debug scheduling issues', style: TextStyle(fontSize: 11)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.pushFade(const SchedulingDebugScreen());
                     },
                   ),
 

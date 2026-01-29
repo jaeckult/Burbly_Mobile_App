@@ -112,11 +112,12 @@ class DeckSchedulingService {
         updatedAt: DateTime.now(),
       );
 
+      print('[${DateTime.now().toIso8601String()}] DeckSchedulingService: Scheduling deck "${deck.name}" for ${nextReviewDate.toString()}');
       await _dataService.updateDeck(updatedDeck);
-      
-      print('Deck "${deck.name}" scheduled for review on ${nextReviewDate.toString()}');
+      print('[${DateTime.now().toIso8601String()}] DeckSchedulingService: Schedule complete for "${deck.name}"');
+       
     } catch (e) {
-      print('Error scheduling deck review: $e');
+      print('[${DateTime.now().toIso8601String()}] Error scheduling deck review: $e');
       rethrow;
     }
   }
@@ -188,11 +189,12 @@ class DeckSchedulingService {
         updatedAt: DateTime.now(),
       );
 
+      print('[${DateTime.now().toIso8601String()}] DeckSchedulingService: Marking deck "${deck.name}" as reviewed (clearing schedule)');
       await _dataService.updateDeck(updatedDeck);
+      print('[${DateTime.now().toIso8601String()}] DeckSchedulingService: Deck "${deck.name}" marked as reviewed');
       
-      print('Deck "${deck.name}" marked as reviewed');
     } catch (e) {
-      print('Error marking deck as reviewed: $e');
+      print('[${DateTime.now().toIso8601String()}] Error marking deck as reviewed: $e');
       rethrow;
     }
   }

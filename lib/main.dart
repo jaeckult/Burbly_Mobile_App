@@ -17,6 +17,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/flashcards/study/screens/mixed_study_screen.dart';
 import 'features/flashcards/deck_detail/view/deck_detail_screen.dart';
+import 'core/services/native_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,10 @@ void main() async {
     
     await setupServiceLocator();
     AppLogger.info('Service locator initialized');
+    
+    // Initialize new native notification system
+    await NativeNotificationService.initialize();
+    AppLogger.info('Native notification service initialized');
     
     // Show UI immediately - other services initialize in background
     runApp(const MyApp());
