@@ -15,6 +15,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'features/auth/bloc/auth_bloc.dart';
+import 'features/onboarding/bloc/onboarding_bloc.dart';
+import 'features/onboarding/screens/onboarding_screen.dart';
+import 'features/walkthrough/bloc/walkthrough_bloc.dart';
 import 'features/flashcards/study/screens/mixed_study_screen.dart';
 import 'features/flashcards/deck_detail/view/deck_detail_screen.dart';
 import 'features/flashcards/notes/screens/notes_screen.dart';
@@ -61,6 +64,12 @@ class MyApp extends StatelessWidget {
         providers: [
           BlocProvider<AuthBloc>(
             create: (_) => AuthBloc(locator.authService),
+          ),
+          BlocProvider<OnboardingBloc>(
+            create: (_) => OnboardingBloc(locator.onboardingService),
+          ),
+          BlocProvider<WalkthroughBloc>(
+            create: (_) => WalkthroughBloc(locator.onboardingService),
           ),
         ],
         child: MaterialApp(
@@ -160,9 +169,14 @@ class _RootScreenState extends State<_RootScreen> {
       final isFirstLaunch = prefs.getBool('isFirstLaunch') ?? true;
       final isGuestMode = prefs.getBool('isGuestMode') ?? false;
       final currentUser = locator.firebaseAuth.currentUser;
+      
+      // Check if onboarding is completed
+      final onboardingCompleted = await locator.onboardingService.isOnboardingCompleted();
 
-      // Only show welcome/login on fresh install; otherwise go straight to home
-      if (isFirstLaunch) {
+      // Priority: Onboarding -> Welcome/Auth -> Home
+      if (!onboardingCompleted) {
+        return const OnboardingScreen();
+      } else if (isFirstLaunch) {
         return const WelcomeScreen();
       } else if (!isGuestMode && currentUser == null) {
         return const WelcomeScreen();

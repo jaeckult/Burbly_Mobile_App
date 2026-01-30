@@ -778,7 +778,7 @@ Widget _buildQuickTimerButton(
           children: [
         // Deck Info Card
         Container(
-          margin: EdgeInsets.all(isWide ? 24 : 16),
+          margin: EdgeInsets.all(isWide ? 24 : 12),
           padding: EdgeInsets.all(isWide ? 24 : 16),
           // ... (omitted content logic)
           // actually I should be careful not to replace the entire body if I don't see it all.
@@ -1255,7 +1255,7 @@ Widget _buildQuickTimerButton(
 
         // Settings Indicator
         Container(
-          margin: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16, vertical: 8),
+          margin: EdgeInsets.symmetric(horizontal: isWide ? 24 : 12, vertical: 8),
           padding: EdgeInsets.all(isWide ? 16 : 12),
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
@@ -1404,7 +1404,7 @@ Widget _buildQuickTimerButton(
           child: _flashcards.isEmpty
               ? _buildEmptyState(context)
               : ListView.builder(
-                  padding: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 120),
                   itemCount: _flashcards.length,
                   itemBuilder: (context, index) {
                     final flashcard = _flashcards[index];
@@ -1458,87 +1458,122 @@ Widget _buildQuickTimerButton(
   }
 
   Widget _buildFlashcardCard(BuildContext context, Flashcard flashcard) {
-    return Card(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: isDark 
+                ? Colors.black.withOpacity(0.25)
+                : Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+        border: Border.all(
+          color: isDark 
+              ? Colors.grey[800]!
+              : Colors.grey.withOpacity(0.12),
+          width: 1,
+        ),
       ),
       child: InkWell(
         onTap: () => _showFlashcardOptions(context, flashcard),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child:                     Text(
+                    child: Text(
                       'Q: ${flashcard.question}',
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
                       ),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => _showFlashcardOptions(context, flashcard),
-                    icon: const Icon(Icons.more_vert),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                  GestureDetector(
+                    onTap: () => _showFlashcardOptions(context, flashcard),
+                    child: Container(
+                      padding: const EdgeInsets.only(left: 8, bottom: 8),
+                      child: Icon(
+                        Icons.more_vert_rounded,
+                        color: Colors.grey[500],
+                        size: 16,
+                      ),
+                    ),
                   ),
                 ],
               ),
               
-                            // Debug: Manual Overdue Check Button (only in debug mode)
-              
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 'A: ${flashcard.answer}',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 12,
                   color: Colors.grey[600],
+                  height: 1.2,
                 ),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
               
-              // Card-level tags are disabled - only deck-level tags are shown
-              // Review Status Tags removed since we only use deck-level scheduling
-              
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(
-                    Icons.star,
-                    size: 16,
-                    color: Colors.amber[600],
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Ease: ${flashcard.easeFactor.toStringAsFixed(1)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.star_rounded,
+                          size: 10,
+                          color: Colors.amber[700],
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          'Ease: ${flashcard.easeFactor.toStringAsFixed(1)}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.amber[700],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const Spacer(),
                   if (flashcard.lastReviewed != null) ...[
                     Icon(
                       Icons.schedule,
-                      size: 16,
+                      size: 12,
                       color: Colors.grey[500],
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _formatDate(flashcard.lastReviewed!),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 10,
                         color: Colors.grey[500],
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],

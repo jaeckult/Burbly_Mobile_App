@@ -23,6 +23,7 @@ class DeckPackNotificationCard extends StatefulWidget {
   final Function(Deck) onDeleteDeck;
   final String Function(DateTime) formatDate;
   final int listIndex;
+  final bool isCompactMode;
 
   const DeckPackNotificationCard({
     super.key,
@@ -36,6 +37,7 @@ class DeckPackNotificationCard extends StatefulWidget {
     required this.onDeleteDeck,
     required this.formatDate,
     this.listIndex = 0,
+    this.isCompactMode = false,
   });
 
   @override
@@ -254,7 +256,9 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
         topRight: Radius.circular(14),
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), // Reduced from 20x12
+        padding: widget.isCompactMode 
+            ? const EdgeInsets.symmetric(horizontal: 4, vertical: 10)
+            : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(14),
@@ -276,7 +280,7 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
         ),
         child: Row(
           children: [
-            // Compact avatar
+            // Compact avatar (Always visible)
             Container(
               width: 36, // Reduced from 56
               height: 36, // Reduced from 56
@@ -313,117 +317,127 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
             
             const SizedBox(width: 10), // Reduced from 16
             
-            // Title and info - COMPACT
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Title row
-                  Row(
+            // Title and info - COMPACT (Hidden in compact shrinking mode)
+            if (!widget.isCompactMode)
+              Expanded(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: widget.isCompactMode ? 0.0 : 1.0,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Text(
-                          widget.deckPack.name,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14, // Explicit smaller size
-                            height: 1.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  // Deck count badge
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: packColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.layers_rounded,
-                              size: 10,
-                              color: packColor,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${widget.decks.length} ${widget.decks.length == 1 ? 'deck' : 'decks'}',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: packColor,
+                      // Title row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.deckPack.name,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14, // Explicit smaller size
                                 height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      // Deck count badge
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: packColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.layers_rounded,
+                                  size: 10,
+                                  color: packColor,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${widget.decks.length} ${widget.decks.length == 1 ? 'deck' : 'decks'}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: packColor,
+                                    height: 1.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (widget.deckPack.description.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                widget.deckPack.description,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey[500],
+                                  height: 1.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                      if (widget.deckPack.description.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            widget.deckPack.description,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey[500],
-                              height: 1.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
             
-            // Trailing actions - compact
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(5), // Reduced from 8
-                  decoration: BoxDecoration(
-                    color: widget.isExpanded
-                        ? packColor.withOpacity(0.15)
-                        : isDark
-                            ? Colors.grey[800]
-                            : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    widget.isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                    color: widget.isExpanded
-                        ? packColor
-                        : Colors.grey[600],
-                    size: 16, // Reduced from 20
-                  ),
-                ),
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: widget.onOptions,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    child: Icon(
-                      Icons.more_vert_rounded,
-                      color: Colors.grey[500],
-                      size: 16, // Reduced from default
+            // Trailing actions - compact (Hidden in compact shrinking mode)
+            if (!widget.isCompactMode)
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: widget.isCompactMode ? 0.0 : 1.0,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(5), // Reduced from 8
+                      decoration: BoxDecoration(
+                        color: widget.isExpanded
+                            ? packColor.withOpacity(0.15)
+                            : isDark
+                                ? Colors.grey[800]
+                                : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        widget.isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                        color: widget.isExpanded
+                            ? packColor
+                            : Colors.grey[600],
+                        size: 16, // Reduced from 20
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: widget.onOptions,
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        child: Icon(
+                          Icons.more_vert_rounded,
+                          color: Colors.grey[500],
+                          size: 16, // Reduced from default
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
           ],
         ),
       ),

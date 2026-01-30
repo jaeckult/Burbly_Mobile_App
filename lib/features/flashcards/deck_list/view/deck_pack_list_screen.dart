@@ -29,6 +29,10 @@ import '../widgets/edge_navigator_strip.dart';
 import '../services/streak_reminder_service.dart';
 import '../../../../core/widgets/skeleton_loading.dart';
 import '../widgets/vertical_edge_strip.dart';
+import '../../../walkthrough/widgets/walkthrough_wrapper.dart';
+import '../../../walkthrough/data/walkthrough_data.dart';
+import '../widgets/burbly_ai_panel.dart';
+import '../widgets/deck_pack_initials_strip.dart';
 
 /// Premium DeckPackListScreen with enhanced UI
 /// Features:
@@ -64,6 +68,15 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
   // Filter state
   String _selectedFilter = 'All';
   int _currentScrollIndex = 0;
+  
+  // Walkthrough GlobalKeys
+  final GlobalKey _createPackKey = GlobalKey();
+  final GlobalKey _statsHeaderKey = GlobalKey();
+  final GlobalKey _searchKey = GlobalKey();
+  final GlobalKey _quickActionsKey = GlobalKey();
+  
+  // AI Panel state
+  final ValueNotifier<bool> _isAIPanelExpanded = ValueNotifier(false);
 
   @override
   void initState() {
@@ -98,6 +111,7 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _isAIPanelExpanded.dispose();
     super.dispose();
   }
 
@@ -418,18 +432,57 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Deck Packs'),
-        actions: [
-          StreakWidget(),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: _openSearch,
-          ),
-        ],
+    // Define walkthrough highlights
+    final highlights = WalkthroughData.getDeckPackListHighlights(
+      createDeckKey: _createPackKey,
+      deckCardKey: _statsHeaderKey,  // Using stats header as placeholder
+      statsKey: _searchKey,
+    );
+    
+    return WalkthroughWrapper(
+      screenName: WalkthroughData.deckPackListScreen,
+      highlights: highlights,
+      child: Scaffold(
+        appBar: AppBar(
+  title: const Text(
+    'Deck Packs',
+    style: TextStyle(
+      fontWeight: FontWeight.w600,
+      letterSpacing: -0.3,
+    ),
+  ),
+  centerTitle: false, // or true – choose your preference
+  elevation: 0,
+  scrolledUnderElevation: 0,
+  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+  actions: [
+    // Streak widget – assuming it already has proper padding/margins inside
+    Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: StreakWidget(),
+    ),
+
+    // Search button with showcase
+    Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: IconButton(
+        icon: const Icon(Icons.search_rounded),
+        tooltip: 'Search decks, cards & notes',
+        iconSize: 26,
+        onPressed: _openSearch,
+      ).withShowcase(
+        key: _searchKey,
+        title: 'Search Everything',
+        description: 'Quickly find any deck, card, or note across all your packs.',
       ),
+    ),
+
+    // Optional: Add more breathing room or a subtle separator if needed
+    const SizedBox(width: 4),
+  ],
+  // Optional: subtle shadow only when scrolled
+  // shadowColor: Colors.black.withOpacity(0.08),
+),
       drawer: DeckPackListDrawer(
         isGuestMode: _isGuestMode,
         onSignInWithGoogle: _signInWithGoogle,
@@ -437,10 +490,15 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
         onSignOut: _signOut,
         onAbout: _showAboutDialog,
       ),
-      body: Stack(
-        children: [
-          // Main content with blur effect
-          GestureDetector(
+      body: ValueListenableBuilder<bool>(
+          valueListenable: _isAIPanelExpanded,
+          builder: (context, isAIPanelExpanded, child) {
+            return Stack(
+              children: [
+                // Main content area with conditional width
+                // Main content area - Always full width to prevent layout displacement
+                Positioned.fill(
+                  child: GestureDetector(
             onTap: _isQuickActionsExpanded
                 ? () {
                     setState(() => _isQuickActionsExpanded = false);
@@ -468,14 +526,20 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
                               ? Column(
                                   children: [
                                     // Stats Header
-                                    DeckPackStatsHeader(
-                                      totalPacks: _calculateStats(state)['packs']!,
-                                      totalDecks: _calculateStats(state)['decks']!,
-                                      totalCards: _calculateStats(state)['cards']!,
-                                      decksToReview: _calculateStats(state)['review']!,
-                                      currentStreak: 0, // Will be fetched from BackgroundService
-                                      selectedFilter: _selectedFilter,
-                                      onFilterChanged: _onFilterChanged,
+                                    Container(
+                                      child: DeckPackStatsHeader(
+                                        totalPacks: _calculateStats(state)['packs']!,
+                                        totalDecks: _calculateStats(state)['decks']!,
+                                        totalCards: _calculateStats(state)['cards']!,
+                                        decksToReview: _calculateStats(state)['review']!,
+                                        currentStreak: 0, // Will be fetched from BackgroundService
+                                        selectedFilter: _selectedFilter,
+                                        onFilterChanged: _onFilterChanged,
+                                      ),
+                                    ).withShowcase(
+                                      key: _statsHeaderKey,
+                                      title: 'Your Learning Stats',
+                                      description: 'Track your progress with packs, decks, cards, and reviews at a glance.',
                                     ),
                                     
                                     // Deck Pack List
@@ -488,24 +552,45 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
                                               },
                                               child: ListView.builder(
                                                 controller: _scrollController,
-                                                padding: const EdgeInsets.fromLTRB(12, 12, 44, 120), // Right padding for edge nav
+                                                padding: EdgeInsets.fromLTRB(
+                                                  isAIPanelExpanded ? 4 : 12, 
+                                                  12, 
+                                                  isAIPanelExpanded ? 0 : 44, 
+                                                  120
+                                                ), 
                                                 itemCount: _filterDeckPacks(state).length,
                                                 itemBuilder: (context, index) {
                                                   final filteredPacks = _filterDeckPacks(state);
                                                   final deckPack = filteredPacks[index];
-                                                  return DeckPackNotificationCard(
-                                                    deckPack: deckPack,
-                                                    decks: (state).decksInPacks[deckPack.id] ?? [],
-                                                    isExpanded: (state).expandedPackIds.contains(deckPack.id),
-                                                    onToggle: () {
-                                                      context.read<DeckPackBloc>().add(TogglePackExpansion(deckPack.id));
-                                                    },
-                                                    onOptions: () => _showDeckPackOptions(deckPack),
-                                                    onCreateDeck: () => _createNewDeck(deckPack),
-                                                    onOpenDeck: _openDeck,
-                                                    onDeleteDeck: _confirmDeleteDeck,
-                                                    formatDate: _formatDate,
-                                                    listIndex: index,
+                                                  // Animate width of card when AI panel is expanded
+                                                  return AnimatedContainer(
+                                                    duration: const Duration(milliseconds: 600),
+                                                    curve: Curves.easeOutQuart,
+                                                    // When expanded, shrink to fit initials only (approx 50px)
+                                                    width: isAIPanelExpanded ? 50 : MediaQuery.of(context).size.width,
+                                                    alignment: Alignment.centerLeft,
+                                                    child: DeckPackNotificationCard(
+                                                      deckPack: deckPack,
+                                                      decks: (state).decksInPacks[deckPack.id] ?? [],
+                                                      // Force collapse details when shrunk
+                                                      isExpanded: (state).expandedPackIds.contains(deckPack.id) && !isAIPanelExpanded,
+                                                      isCompactMode: isAIPanelExpanded,
+                                                      onToggle: () {
+                                                        if (isAIPanelExpanded) {
+                                                           // If tapped while shrunk, expand panel back? Or just ignore?
+                                                           // Let's close AI panel to restore view
+                                                           _isAIPanelExpanded.value = false;
+                                                        } else {
+                                                          context.read<DeckPackBloc>().add(TogglePackExpansion(deckPack.id));
+                                                        }
+                                                      },
+                                                      onOptions: () => _showDeckPackOptions(deckPack),
+                                                      onCreateDeck: () => _createNewDeck(deckPack),
+                                                      onOpenDeck: _openDeck,
+                                                      onDeleteDeck: _confirmDeleteDeck,
+                                                      formatDate: _formatDate,
+                                                      listIndex: index,
+                                                    ),
                                                   );
                                                 },
                                               ),
@@ -534,6 +619,33 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
               ],
             ),
           ),
+        ),
+        
+        // Burbly AI Panel (Handles both collapsed and expanded states)
+        BurblyAIPanel(
+          isExpandedNotifier: _isAIPanelExpanded,
+        ),
+        
+        if (_isQuickActionsExpanded)
+  if (_isQuickActionsExpanded)
+  Positioned.fill(
+    child: TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOutCubic,   // ← buttery smooth natural deceleration
+      builder: (context, value, child) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: 12.0 * value,
+            sigmaY: 12.0 * value,
+          ),
+          child: Container(
+            color: Colors.black.withOpacity(0.28 * value),
+          ),
+        );
+      },
+    ),
+  ),
           
           // Quick actions sheet
           QuickActionsSheet(
@@ -548,10 +660,17 @@ class _DeckPackListScreenContentState extends State<_DeckPackListScreenContent> 
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _createNewDeckPack,
-        child: const Icon(Icons.folder_open),
+      );
+    },
+  ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _createNewDeckPack,
+          child: const Icon(Icons.folder_open),
+        ).withShowcase(
+          key: _createPackKey,
+          title: 'Create Your First Pack',
+          description: 'Organize your flashcards into themed packs for better learning.',
+        ),
       ),
     );
   }

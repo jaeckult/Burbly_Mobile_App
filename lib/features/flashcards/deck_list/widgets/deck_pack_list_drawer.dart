@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/core.dart';
 import '../../../../core/services/adaptive_theme_service.dart';
+import '../../../../core/services/onboarding_service.dart';
 import '../../../auth/screens/home_screen.dart';
 import '../../home/screens/flashcard_home_screen.dart';
 import '../../notes/screens/notes_screen.dart';
@@ -196,6 +197,27 @@ class DeckPackListDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       context.pushFade(const SchedulingDebugScreen());
+                    },
+                  ),
+                  ListTile(
+                    dense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    leading: const Icon(Icons.refresh, size: 22, color: Colors.teal),
+                    title: const Text('Reset Onboarding', style: TextStyle(fontSize: 14)),
+                    subtitle: const Text('Test onboarding flow', style: TextStyle(fontSize: 11)),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await OnboardingService().resetAll();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Onboarding reset! Restart the app to see it again.'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
                     },
                   ),
 

@@ -11,6 +11,7 @@ import '../services/overdue_service.dart';
 import '../services/deck_scheduling_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/adaptive_theme_service.dart';
+import '../services/onboarding_service.dart';
 import '../../features/auth/services/auth_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/sync_service.dart';
@@ -104,6 +105,9 @@ Future<void> setupServiceLocator() async {
 
   // Auth Services
   locator.registerLazySingleton<AuthService>(() => AuthService());
+  
+  // Onboarding Service
+  locator.registerLazySingleton<OnboardingService>(() => OnboardingService());
 }
 
 /// Resets the service locator (useful for testing).
@@ -141,4 +145,7 @@ extension ServiceLocatorExtension on GetIt {
   // Firebase instances
   FirebaseAuth get firebaseAuth => get<FirebaseAuth>();
   FirebaseFirestore get firestore => get<FirebaseFirestore>();
+  
+  // Onboarding service
+  OnboardingService get onboardingService => get<OnboardingService>();
 }

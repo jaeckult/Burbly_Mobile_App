@@ -61,6 +61,9 @@ dependencies:
   animations: ^2.1.1
   lottie: ^3.1.0
   slide_to_act: ^2.0.2
+  smooth_page_indicator: ^1.2.0+3
+  showcaseview: ^3.0.0
+  flutter_svg: ^2.0.10+1
 
 dev_dependencies:
   flutter_test:
@@ -84,6 +87,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/google_logo.png
+    - assets/animations/
 
 flutter_native_splash:
   color: "#FFFFFF"
