@@ -12,11 +12,15 @@ import 'core/services/initialization_service.dart';
 import 'core/animations/page_transitions.dart';
 import 'core/utils/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/flashcards/study/screens/mixed_study_screen.dart';
 import 'features/flashcards/deck_detail/view/deck_detail_screen.dart';
+import 'features/flashcards/notes/screens/notes_screen.dart';
+import 'features/flashcards/notifications/screens/notification_settings_screen.dart';
+import 'features/flashcards/trash/screens/trash_screen.dart';
+import 'features/stats/screens/stats_page.dart';
 import 'core/services/native_notification_service.dart';
 
 void main() async {
@@ -72,15 +76,15 @@ class MyApp extends StatelessWidget {
           navigatorKey: locator.notificationService.navigatorKey,
           home: const _RootScreen(),
           onGenerateRoute: (settings) {
+            // Home and main screens
             if (settings.name == '/home') {
               return MaterialPageRoute(builder: (_) => const DeckPackListScreen());
             }
             if (settings.name == '/flashcards') {
               return MaterialPageRoute(builder: (_) => const FlashcardHomeScreen());
             }
-            if (settings.name == '/privacy') {
-              return MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen());
-            }
+            
+            // Study screens
             if (settings.name == '/study-mixed') {
               return MaterialPageRoute(builder: (_) => const MixedStudyScreen());
             }
@@ -91,6 +95,29 @@ class MyApp extends StatelessWidget {
                 return MaterialPageRoute(builder: (_) => DeckDetailScreen(deck: deck));
               }
             }
+            
+            // Feature screens
+            if (settings.name == '/notes') {
+              return MaterialPageRoute(builder: (_) => const NotesScreen());
+            }
+            if (settings.name == '/stats') {
+              return MaterialPageRoute(builder: (_) => StatsPage());
+            }
+            if (settings.name == '/notifications') {
+              return MaterialPageRoute(builder: (_) => const NotificationSettingsScreen());
+            }
+            if (settings.name == '/trash') {
+              return MaterialPageRoute(builder: (_) => const TrashScreen());
+            }
+            if (settings.name == '/deck-packs') {
+              return MaterialPageRoute(builder: (_) => const DeckPackListScreen());
+            }
+            
+            // Auth screens
+            if (settings.name == '/privacy') {
+              return MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen());
+            }
+            
             return null;
           },
           routes: {

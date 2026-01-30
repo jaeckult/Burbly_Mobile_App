@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
-import '../../flashcards/flashcard_home_screen.dart';
+import '../../flashcards/home/screens/flashcard_home_screen.dart';
 import '../../../core/core.dart';
 
 class HomeScreen extends StatelessWidget {

@@ -5,10 +5,11 @@ import '../../../../core/models/deck.dart';
 import '../../../../core/models/deck_pack.dart';
 import 'deck_card.dart';
 
-/// Enhanced DeckPack card with inline notification system
+/// Enhanced DeckPack card with improved visual hierarchy
 /// Features:
+/// - 35% smaller card size with compact layout
+/// - Clear visual hierarchy with proper spacing
 /// - Red dot badge when decks need review
-/// - Auto-expansion every 10 seconds
 /// - Smooth notification banner with slide/fade animations
 /// - Staggered entrance effects
 class DeckPackNotificationCard extends StatefulWidget {
@@ -53,7 +54,6 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
   void initState() {
     super.initState();
     
-    // Initialize notification animation controller
     _notificationController = AnimationController(
       duration: const Duration(milliseconds: 400),
       vsync: this,
@@ -74,21 +74,7 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
       parent: _notificationController,
       curve: Curves.easeOut,
     ));
-
-    // Start auto-expansion timer if there are decks to review
-    // if (_decksToReview > 0) {
-    //   _startAutoExpandTimer();
-    // }
   }
-
-//   void _startAutoExpandTimer() {
-//     _autoExpandTimer?.cancel();
-//     _autoExpandTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-//       if (mounted && !widget.isExpanded) {
-//         _showNotificationBanner();
-//       }
-//     });
-//   }
 
   void _showNotificationBanner() {
     if (!mounted) return;
@@ -96,10 +82,6 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
     setState(() => _showNotification = true);
     _notificationController.forward();
 
-    // Reset timer when notification is shown
-    // _startAutoExpandTimer();
-
-    // Hide notification after 3 seconds
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         _notificationController.reverse().then((_) {
@@ -112,12 +94,10 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
   }
 
   void _onBadgeTap() {
-    // Show notification banner
     _showNotificationBanner();
   }
 
   void _onNotificationTap() {
-    // Navigate to first deck that needs review
     final deckToReview = widget.decks.firstWhere(
       (deck) => (deck.deckIsReviewNow == true) || (deck.deckIsOverdue == true),
       orElse: () => widget.decks.first,
@@ -130,20 +110,6 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
     _autoExpandTimer?.cancel();
     _notificationController.dispose();
     super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(DeckPackNotificationCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    
-    // Restart timer if review count changed
-    // if (_decksToReview != _calculateDecksToReview(oldWidget.decks)) {
-    //   if (_decksToReview > 0) {
-    //     _startAutoExpandTimer();
-    //   } else {
-    //     _autoExpandTimer?.cancel();
-    //   }
-    // }
   }
 
   int get _decksToReview => _calculateDecksToReview(widget.decks);
@@ -166,10 +132,11 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
     }
 
     final packColor = Color(int.parse('0xFF${widget.deckPack.coverColor}'));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return RepaintBoundary(
       child: Container(
-        margin: const EdgeInsets.only(bottom: 20),
+        margin: const EdgeInsets.only(bottom: 12), // Reduced from 20
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -189,173 +156,37 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
                   : const SizedBox.shrink(),
             ),
 
-            // Main card - fixed position
+            // Main card - compact design
             Stack(
               clipBehavior: Clip.none,
               children: [
                 Container(
                   decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context).brightness == Brightness.dark 
-                        ? Colors.black.withOpacity(0.3)
-                        : packColor.withOpacity(0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                    spreadRadius: 0,
-                  ),
-                  if (Theme.of(context).brightness == Brightness.light)
-                    BoxShadow(
-                      color: packColor.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                      spreadRadius: 0,
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(14), // Reduced from 20
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDark 
+                            ? Colors.black.withOpacity(0.25)
+                            : packColor.withOpacity(0.06),
+                        blurRadius: 10, // Reduced from 16
+                        offset: const Offset(0, 4), // Reduced from 6
+                        spreadRadius: 0,
+                      ),
+                    ],
+                    border: Border.all(
+                      color: widget.isExpanded 
+                          ? packColor.withOpacity(0.5)
+                          : isDark 
+                              ? Colors.grey[800]!
+                              : packColor.withOpacity(0.12),
+                      width: widget.isExpanded ? 1.5 : 1,
                     ),
-                ],
-                border: Border.all(
-                  color: widget.isExpanded 
-                      ? packColor.withOpacity(0.4)
-                      : Theme.of(context).brightness == Brightness.dark 
-                          ? Colors.grey[700]!
-                          : packColor.withOpacity(0.15),
-                  width: widget.isExpanded ? 2.5 : 1.5,
-                ),
-              ),
+                  ),
                   child: Column(
                     children: [
-
-                      // Deck Pack Header
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(20),
-                            topRight: Radius.circular(20),
-                          ),
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: Theme.of(context).brightness == Brightness.light
-                                ? [
-                                    packColor.withOpacity(0.12),
-                                    packColor.withOpacity(0.06),
-                                    packColor.withOpacity(0.02),
-                                  ]
-                                : [
-                                    packColor.withOpacity(0.1),
-                                    packColor.withOpacity(0.05),
-                                  ],
-                            stops: Theme.of(context).brightness == Brightness.light
-                                ? [0.0, 0.6, 1.0]
-                                : null,
-                          ),
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          leading: Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                colors: [
-                                  packColor,
-                                  packColor.darken(0.2),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: packColor.withOpacity(0.15),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Text(
-                                initials,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            widget.deckPack.name,
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (widget.deckPack.description.isNotEmpty) ...[
-                                Text(
-                                  widget.deckPack.description,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Colors.grey[600],
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                              ],
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.folder,
-                                    size: 16,
-                                    color: packColor,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${widget.decks.length} ${widget.decks.length == 1 ? 'deck' : 'decks'}',
-                                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: packColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: widget.isExpanded
-                                      ? (Theme.of(context).colorScheme.primary).withOpacity(0.1)
-                                      : Theme.of(context).brightness == Brightness.dark
-                                          ? Colors.grey[800]
-                                          : Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  widget.isExpanded ? Icons.expand_less : Icons.expand_more,
-                                  color: widget.isExpanded
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context).iconTheme.color,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                icon: Icon(Icons.more_vert, color: Colors.grey[600]),
-                                onPressed: widget.onOptions,
-                              ),
-                            ],
-                          ),
-                          onTap: widget.onToggle,
-                        ),
-                      ),
+                      // Deck Pack Header - COMPACT
+                      _buildCompactHeader(context, packColor, initials, isDark),
                       
                       // Expanded content
                       AnimatedSize(
@@ -363,18 +194,18 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
                         curve: Curves.easeOutCubic,
                         child: widget.isExpanded
                             ? Container(
-                                padding: const EdgeInsets.fromLTRB(40, 20, 20, 20),
+                                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12), // Reduced padding
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).brightness == Brightness.light
-                                      ? packColor.withOpacity(0.04)
+                                  color: isDark
+                                      ? packColor.withOpacity(0.03)
                                       : packColor.withOpacity(0.02),
                                   borderRadius: const BorderRadius.only(
-                                    bottomLeft: Radius.circular(20),
-                                    bottomRight: Radius.circular(20),
+                                    bottomLeft: Radius.circular(14),
+                                    bottomRight: Radius.circular(14),
                                   ),
                                   border: Border(
                                     top: BorderSide(
-                                      color: packColor.withOpacity(0.1),
+                                      color: packColor.withOpacity(0.08),
                                       width: 1,
                                     ),
                                   ),
@@ -390,8 +221,8 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
                 // Orange dot badge indicator
                 if (_decksToReview > 0)
                   Positioned(
-                    top: -4,
-                    right: -4,
+                    top: -3,
+                    right: -3,
                     child: GestureDetector(
                       onTap: _onBadgeTap,
                       child: _buildOrangeBadge(),
@@ -403,14 +234,199 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
         ),
       ),
     ).animate().fadeIn(
-      duration: 400.ms,
-      delay: (widget.listIndex * 100).ms,
-    ).scale(
-      begin: const Offset(0.95, 0.95),
-      end: const Offset(1.0, 1.0),
-      duration: 400.ms,
-      delay: (widget.listIndex * 100).ms,
+      duration: 350.ms,
+      delay: (widget.listIndex * 80).ms,
+    ).slideY(
+      begin: 0.1,
+      end: 0,
+      duration: 350.ms,
+      delay: (widget.listIndex * 80).ms,
       curve: Curves.easeOutCubic,
+    );
+  }
+
+  /// Compact header with better visual hierarchy
+  Widget _buildCompactHeader(BuildContext context, Color packColor, String initials, bool isDark) {
+    return InkWell(
+      onTap: widget.onToggle,
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(14),
+        topRight: Radius.circular(14),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), // Reduced from 20x12
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(14),
+            topRight: Radius.circular(14),
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    packColor.withOpacity(0.08),
+                    packColor.withOpacity(0.03),
+                  ]
+                : [
+                    packColor.withOpacity(0.08),
+                    packColor.withOpacity(0.02),
+                  ],
+          ),
+        ),
+        child: Row(
+          children: [
+            // Compact avatar
+            Container(
+              width: 36, // Reduced from 56
+              height: 36, // Reduced from 56
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    packColor,
+                    packColor.darken(0.15),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: packColor.withOpacity(0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13, // Reduced from 20
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 10), // Reduced from 16
+            
+            // Title and info - COMPACT
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Title row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.deckPack.name,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14, // Explicit smaller size
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  // Deck count badge
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: packColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.layers_rounded,
+                              size: 10,
+                              color: packColor,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${widget.decks.length} ${widget.decks.length == 1 ? 'deck' : 'decks'}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: packColor,
+                                height: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (widget.deckPack.description.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            widget.deckPack.description,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[500],
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Trailing actions - compact
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(5), // Reduced from 8
+                  decoration: BoxDecoration(
+                    color: widget.isExpanded
+                        ? packColor.withOpacity(0.15)
+                        : isDark
+                            ? Colors.grey[800]
+                            : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    widget.isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                    color: widget.isExpanded
+                        ? packColor
+                        : Colors.grey[600],
+                    size: 16, // Reduced from 20
+                  ),
+                ),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: widget.onOptions,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    child: Icon(
+                      Icons.more_vert_rounded,
+                      color: Colors.grey[500],
+                      size: 16, // Reduced from default
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -419,19 +435,20 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
       onTap: _onNotificationTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // Reduced padding
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Colors.orange.shade400.withOpacity(0.9),
-              Colors.orange.shade600.withOpacity(0.9),
+              Colors.orange.shade400,
+              Colors.orange.shade600,
             ],
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.orange.withOpacity(0.3),
-              blurRadius: 8,
+              color: Colors.orange.withOpacity(0.25),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -439,18 +456,18 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.notifications_active,
+                Icons.notifications_active_rounded,
                 color: Colors.white,
-                size: 18,
+                size: 12, // Reduced from 18
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 _decksToReview == 1
@@ -458,16 +475,16 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
                     : '$_decksToReview decks need review',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 14,
+                  fontSize: 11, // Reduced from 14
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
+                  letterSpacing: 0.2,
                 ),
               ),
             ),
             const Icon(
-              Icons.arrow_forward_ios,
+              Icons.arrow_forward_ios_rounded,
               color: Colors.white,
-              size: 14,
+              size: 10, // Reduced from 14
             ),
           ],
         ),
@@ -477,28 +494,28 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
 
   Widget _buildOrangeBadge() {
     return Container(
-      width: 24,
-      height: 24,
+      width: 18, // Reduced from 24
+      height: 18, // Reduced from 24
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
           colors: [
             Colors.orange.shade400,
-            Colors.orange.shade700,
+            Colors.orange.shade600,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withOpacity(0.5),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.orange.withOpacity(0.4),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
         border: Border.all(
           color: Colors.white,
-          width: 2,
+          width: 1.5, // Reduced from 2
         ),
       ),
       child: Center(
@@ -506,7 +523,7 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
           _decksToReview > 9 ? '9+' : '$_decksToReview',
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 10,
+            fontSize: 8, // Reduced from 10
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -514,9 +531,9 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
     ).animate(
       onPlay: (controller) => controller.repeat(reverse: true),
     ).scale(
-      begin: const Offset(0.9, 0.9),
-      end: const Offset(1.1, 1.1),
-      duration: 2000.ms,
+      begin: const Offset(0.95, 0.95),
+      end: const Offset(1.05, 1.05),
+      duration: 1500.ms,
       curve: Curves.easeInOut,
     );
   }
@@ -526,91 +543,60 @@ class _DeckPackNotificationCardState extends State<DeckPackNotificationCard>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.decks.isNotEmpty) ...[
-          Column(
-            children: widget.decks.asMap().entries.map((entry) {
-              final index = entry.key;
-              final deck = entry.value;
-              return Column(
-                children: [
-                  DeckCard(
-                    deck: deck,
-                    deckPack: widget.deckPack,
-                    onTap: () => widget.onOpenDeck(deck),
-                    onDelete: () => widget.onDeleteDeck(deck),
-                    formatDate: widget.formatDate,
-                  ),
-                  if (index < widget.decks.length - 1)
-                    Divider(
-                      color: baseColor.withOpacity(0.1),
-                      thickness: 1,
-                      indent: 16,
-                      endIndent: 16,
-                    ),
-                ],
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
+          ...widget.decks.asMap().entries.map((entry) {
+            final index = entry.key;
+            final deck = entry.value;
+            return Column(
+              children: [
+                DeckCard(
+                  deck: deck,
+                  deckPack: widget.deckPack,
+                  onTap: () => widget.onOpenDeck(deck),
+                  onDelete: () => widget.onDeleteDeck(deck),
+                  formatDate: widget.formatDate,
+                ),
+                if (index < widget.decks.length - 1)
+                  const SizedBox(height: 6), // Simple spacing instead of divider
+              ],
+            );
+          }),
+          const SizedBox(height: 8), // Reduced from 16
         ],
 
-        // Add New Deck Button
+        // Add New Deck Button - compact
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: Theme.of(context).brightness == Brightness.light
-                  ? [
-                      baseColor.withOpacity(0.15),
-                      baseColor.withOpacity(0.08),
-                      baseColor.withOpacity(0.03),
-                    ]
-                  : [
-                      baseColor.withOpacity(0.1),
-                      baseColor.withOpacity(0.05),
-                    ],
-              stops: Theme.of(context).brightness == Brightness.light
-                  ? [0.0, 0.7, 1.0]
-                  : null,
-            ),
-            borderRadius: BorderRadius.circular(16),
+            color: baseColor.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: baseColor.withOpacity(0.25),
+              color: baseColor.withOpacity(0.15),
+              width: 1,
               style: BorderStyle.solid,
-              width: 1.5,
             ),
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.grey[800]
-                : null,
-            boxShadow: [
-              if (Theme.of(context).brightness == Brightness.light)
-                BoxShadow(
-                  color: baseColor.withOpacity(0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                  spreadRadius: 0,
-                ),
-            ],
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: widget.onCreateDeck,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12), // Reduced
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.add_circle_outline,
+                      Icons.add_rounded,
                       color: baseColor,
-                      size: 20,
+                      size: 16, // Reduced from 20
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Text(
-                      'Add New Deck',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      'Add Deck',
+                      style: TextStyle(
                         color: baseColor,
+                        fontSize: 12, // Reduced
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],

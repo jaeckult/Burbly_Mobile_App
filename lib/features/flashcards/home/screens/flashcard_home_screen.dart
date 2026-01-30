@@ -1,20 +1,21 @@
-// import 'package:burblyflashcard/features/pets/screens/pet_management_screen.dart';
+
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/core.dart';
-import '../../../../core/services/adaptive_theme_service.dart';
+
 import '../../../../core/services/background_service.dart';
 import '../../../../core/widgets/sync_dialog.dart';
+import '../../../../core/widgets/app_drawer.dart';
 import '.././../deck_management/screens/create_deck_screen.dart';
 import '../../deck_detail/view/deck_detail_screen.dart';
-// import 'search_screen.dart';
-import '../../../../core/services/background_service.dart';
+
+
 import '../../deck_list/view/deck_pack_list_screen.dart';
 import '../../notes/screens/notes_screen.dart';
 import '../../notifications/screens/notification_settings_screen.dart';
 import '../../../stats/screens/stats_page.dart';
-// import '../../../core/services/pet_notification_service.dart';
+
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../trash/screens/trash_screen.dart';
 import '../../study/screens/mixed_study_screen.dart';
@@ -188,7 +189,13 @@ class _FlashcardHomeScreenState extends State<FlashcardHomeScreen> {
   foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
   elevation: 0,
 ),
-drawer: _buildDrawer(),
+drawer: AppDrawer(
+        isGuestMode: _isGuestMode,
+        onSignInWithGoogle: _signInWithGoogle,
+        onBackupToCloud: _backupToCloud,
+        onSignOut: _signOut,
+        currentIndex: 1, // My Decks
+      ),
       body: _isLoading
           ? Center(
               child: CircularProgressIndicator(
@@ -224,266 +231,6 @@ drawer: _buildDrawer(),
     );
   }
 
-  Widget _buildDrawer() {
-    final user = FirebaseAuth.instance.currentUser;
-    return Drawer(
-      width: MediaQuery.of(context).size.width * 0.75,
-      child: SafeArea(
-        child: Column(
-          children: [
-            UserAccountsDrawerHeader(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).primaryColor,
-                  Theme.of(context).primaryColor.withOpacity(0.85),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            margin: EdgeInsets.zero,
-            currentAccountPicture: _isGuestMode
-                ? CircleAvatar(
-                    radius: 36,
-                    backgroundColor: Colors.white,
-                    child: const Icon(Icons.person, size: 40, color: Colors.grey),
-                  )
-                : UserProfileAvatar(
-                    radius: 36,
-                    backgroundColor: Colors.white,
-                  ),
-            accountName: Text(
-              _isGuestMode ? 'Guest User' : (user?.displayName ?? 'User'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            accountEmail: Text(
-              _isGuestMode ? 'Offline mode' : (user?.email ?? ''),
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
-
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: Text(
-                      "Study",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey),
-                    ),
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    leading: const Icon(Icons.home_outlined, size: 22, color: Colors.blue),
-                    title: const Text('Deck Packs', style: TextStyle(fontSize: 14)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      NavigationHelper.pushAndClearStack(
-                        context,
-                        const DeckPackListScreen(),
-                        transitionType: MaterialMotionTransitionType.fadeThrough,
-                      );
-                    },
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    leading: const Icon(Icons.school_outlined, size: 22, color: Colors.green),
-                    title: const Text('My Decks', style: TextStyle(fontSize: 14)),
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    leading: const Icon(Icons.note_outlined, size: 22, color: Colors.orange),
-                    title: const Text('Notes', style: TextStyle(fontSize: 14)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.pushFade(
-                        const NotesScreen(),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    leading: const Icon(Icons.analytics_outlined, size: 22, color: Colors.purple),
-                    title: const Text('Statistics', style: TextStyle(fontSize: 14)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.pushFade(
-                        StatsPage(),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    leading: const Icon(Icons.notifications_outlined, size: 22, color: Colors.red),
-                    title: const Text('Notifications', style: TextStyle(fontSize: 14)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.pushFade(
-                        const NotificationSettingsScreen(),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    leading: Icon(
-                      AdaptiveThemeService.isDarkMode(context) ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                      size: 22,
-                      color: AdaptiveThemeService.isDarkMode(context) ? Colors.yellow[700] : Colors.black,
-                    ),
-                    title: Text(AdaptiveThemeService.isDarkMode(context) ? 'Light Mode' : 'Dark Mode', style: const TextStyle(fontSize: 14)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      AdaptiveThemeService.toggleTheme(context);
-                    },
-                  ),
-                  // ListTile(
-                  //   dense: true,
-                  //   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                  //   leading: const Icon(Icons.pets_outlined, size: 22, color: Colors.teal),
-                  //   title: Row(
-                  //     mainAxisSize: MainAxisSize.min,
-                  //     children: [
-                  //       const Text('Pet Management', style: TextStyle(fontSize: 14)),
-                  //       const SizedBox(width: 6),
-                  //       Container(
-                  //         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  //         decoration: BoxDecoration(
-                  //           color: Colors.orange.shade600,
-                  //           borderRadius: BorderRadius.circular(8),
-                  //         ),
-                  //         child: const Text(
-                  //           'Testing',
-                  //           style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                  //         ),
-                  //       ),
-                  //     ],
-                  //   ),
-                  //   onTap: () {
-                  //     Navigator.pop(context);
-                  //     context.pushSlide(
-                  //       const PetManagementScreen(),
-                  //     );
-                  //   },
-                  // ),
-                  // Debug: Profile Demo (remove in production)
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    leading: const Icon(Icons.person_outline, size: 22, color: Colors.orange),
-                    title: const Text('Profile Demo', style: TextStyle(fontSize: 14)),
-                    subtitle: const Text('Test profile storage', style: TextStyle(fontSize: 12)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.pushFade(
-                        const ProfileDemoScreen(),
-                      );
-                    },
-                  ),
-                  
-                  // Mixed Study (temporarily disabled)
-                  // ListTile(
-                  //   dense: true,
-                  //   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                  //   leading: const Icon(Icons.shuffle, size: 22, color: Colors.purple),
-                  //   title: const Text('Mixed Study', style: TextStyle(fontSize: 14)),
-                  //   subtitle: const Text('Study cards from all decks', style: TextStyle(fontSize: 12)),
-                  //   onTap: () {
-                  //     Navigator.pop(context);
-                  //     context.pushFade(
-                  //       const MixedStudyScreen(),
-                  //     );
-                  //   },
-                  // ),
-                  const Divider(height: 1, thickness: 0.5),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: Text(
-                      "Account",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey),
-                    ),
-                  ),
-                  if (_isGuestMode)
-                    ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                      leading: const Icon(Icons.cloud_sync_outlined, size: 22, color: Colors.blueAccent),
-                      title: const Text('Sign in with Google', style: TextStyle(fontSize: 14)),
-                      subtitle: const Text('Sync your data', style: TextStyle(fontSize: 12)),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _signInWithGoogle();
-                      },
-                    )
-                  else ...[
-                    ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                      leading: const Icon(Icons.backup_outlined, size: 22, color: Colors.indigo),
-                      title: const Text('Backup to Cloud', style: TextStyle(fontSize: 14)),
-                      subtitle: const Text('Sync your data', style: TextStyle(fontSize: 12)),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _backupToCloud();
-                      },
-                    ),
-                    ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                      leading: const Icon(Icons.logout, size: 22, color: Colors.redAccent),
-                      title: const Text('Sign out', style: TextStyle(fontSize: 14)),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _signOut();
-                      },
-                    ),
-                  ],
-                  const Divider(height: 1, thickness: 0.5),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    leading: const Icon(Icons.info_outline, size: 22, color: Colors.grey),
-                    title: const Text('About', style: TextStyle(fontSize: 14)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showAboutDialog();
-                    },
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    leading: const Icon(Icons.delete_outline, size: 22, color: Colors.brown),
-                    title: const Text('Trash', style: TextStyle(fontSize: 14)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.pushFade(
-                        const TrashScreen(),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                "v1.0.0",
-                style: TextStyle(color: Colors.grey[500], fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildBody() {
     return Column(
